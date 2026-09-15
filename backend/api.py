@@ -546,9 +546,6 @@ def get_summary():
     return jsonify({'assets': results, 'mode': mode, 'categories': CATEGORIES, 'category_icons': CATEGORY_ICONS})
 
 
-@app.route('/api/price-history', methods=['GET'])
-@safe_endpoint
-
 @app.route('/api/asset-detail', methods=['GET'])
 @safe_endpoint
 def get_asset_detail():
@@ -648,6 +645,8 @@ def get_asset_detail():
     })
 
 
+@app.route('/api/price-history', methods=['GET'])
+@safe_endpoint
 def get_price_history():
     """Line / Area chart — Close prices over time."""
     asset  = request.args.get('asset', 'Gold')
@@ -1087,3 +1086,10 @@ if __name__ == '__main__':
     print(f"{len(TICKERS)} assets across {len(CATEGORIES)} categories")
 
     app.run(debug=debug_flag, port=port, host=host)
+
+# At the bottom of api.py, after all routes are registered:
+import collections
+endpoint_names = [rule.endpoint for rule in app.url_map.iter_rules()]
+dupes = [name for name, count in collections.Counter(endpoint_names).items() if count > 1]
+if dupes:
+    raise RuntimeError(f"Duplicate Flask endpoints detected: {dupes}")
