@@ -6,6 +6,9 @@ Does NOT modify any existing backend files.
 
 from flask import Flask, jsonify, request
 from flask_cors import CORS
+from flask_limiter import Limiter
+from flask_limiter.util import get_remote_address
+from werkzeug.exceptions import HTTPException
 import pandas as pd
 import numpy as np
 import os
@@ -27,10 +30,18 @@ from simulator import build_relationship_map, simulate_shock
 app = Flask(__name__)
 logging.basicConfig(level=os.getenv('LOG_LEVEL', 'INFO'))
 logger = logging.getLogger('marketpulse.api')
+limiter = Limiter(
+    get_remote_address,
+    app=app,
+    default_limits=['120 per minute'],
+    storage_uri=os.getenv('RATELIMIT_STORAGE_URI', 'memory://'),
+)
 
 
 @app.errorhandler(Exception)
 def handle_unexpected_error(error):
+    if isinstance(error, HTTPException):
+        return jsonify({'error': error.description}), error.code
     logger.exception('Unhandled API error: %s', error)
     return jsonify({'error': 'An internal server error occurred.'}), 500
 
@@ -149,7 +160,10 @@ def _load_cache(key: str):
 def _save_cache(key: str, data):
     base = _cache_path(key)
     if isinstance(data, pd.DataFrame):
-        data.to_parquet(f"{base}.parquet", index=True)
+        try:
+            data.to_parquet(f"{base}.parquet", index=True)
+        except ImportError:
+            logger.warning('PyArrow is not installed; skipping DataFrame cache write')
         return
     with open(f"{base}.json", 'w', encoding='utf-8') as cache_file:
         json.dump(data, cache_file)
@@ -201,9 +215,7 @@ def flatten_columns(df: pd.DataFrame) -> pd.DataFrame:
 def fetch_live_quote(ticker_symbol: str) -> dict:
     import yfinance as yf
     try:
-        df = yf.download(ticker_symbol, period='2d', interval='1m', progress=False, auto_adjust=True)
-        if df.empty:
-            df = yf.download(ticker_symbol, period='5d', interval='1d', progress=False, auto_adjust=True)
+        df = yf.download(ticker_symbol, period='5d', interval='1d', progress=False, auto_adjust=True)
         df = flatten_columns(df)
         if df.empty or 'Close' not in df.columns:
             return {}
@@ -241,8 +253,8 @@ def probability_positive(returns_series: pd.Series, window: int = 60) -> float:
     return round(float((recent > 0).sum() / len(recent) * 100), 1)
 
 
-def investment_suggestion(vol: float, trend_30d: float, prob: float) -> dict:
-    """Produce a beginner-friendly investment suggestion dict."""
+def market_context(vol: float, trend_30d: float, prob: float) -> dict:
+    """Describe historical market conditions without making a trade recommendation."""
     # Risk
     if vol < 0.15:
         risk, risk_color = 'Low', 'green'
@@ -254,23 +266,23 @@ def investment_suggestion(vol: float, trend_30d: float, prob: float) -> dict:
     # Trend
     if trend_30d > 0.04:
         trend_lbl = 'Strong Uptrend'
-        action = 'Consider gradual entry — momentum is positive.'
+        action = 'Historical momentum is positive; review the underlying data and risk context.'
         trend_icon = ''
     elif trend_30d > 0.01:
         trend_lbl = 'Mild Uptrend'
-        action = 'Watch for dips as entry points.'
+        action = 'Historical momentum is mildly positive; monitor whether the pattern persists.'
         trend_icon = ''
     elif trend_30d > -0.01:
         trend_lbl = 'Sideways / Consolidating'
-        action = 'Wait for a breakout before committing.'
+        action = 'Historical returns are broadly range-bound; no directional conclusion is implied.'
         trend_icon = ''
     elif trend_30d > -0.04:
         trend_lbl = 'Mild Downtrend'
-        action = 'Avoid new purchases; wait for stabilization.'
+        action = 'Historical momentum is mildly negative; monitor for changes in trend and volatility.'
         trend_icon = ''
     else:
         trend_lbl = 'Strong Downtrend'
-        action = 'High caution — consider exiting or staying out.'
+        action = 'Historical momentum is strongly negative; downside risk has been elevated in this sample.'
         trend_icon = ''
 
     # Composite score (0-100, higher = better opportunity)
@@ -282,11 +294,11 @@ def investment_suggestion(vol: float, trend_30d: float, prob: float) -> dict:
     )))
 
     if risk == 'Low':
-        beginner_note = 'Good for beginners as a small diversified allocation.'
+        beginner_note = 'Observed volatility was relatively low in this sample; diversification and independent research still matter.'
     elif risk == 'Medium':
-        beginner_note = 'Suitable for investors with moderate risk tolerance.'
+        beginner_note = 'Observed volatility was moderate in this sample; this is descriptive, not a suitability assessment.'
     else:
-        beginner_note = 'High risk — only for experienced investors with stop-losses.'
+        beginner_note = 'Observed volatility was high in this sample; losses can be significant and future behavior is uncertain.'
 
     text = (
         f"This asset currently shows {risk.lower()} volatility. {trend_lbl}. "
@@ -381,6 +393,7 @@ def get_algorithms():
 
 
 @app.route('/api/verify', methods=['GET'])
+@limiter.limit('10 per minute')
 def verify_quote():
     asset = request.args.get('asset', 'Gold')
     ticker = TICKERS.get(asset)
@@ -655,7 +668,7 @@ def get_probability():
     vol      = float(returns.rolling(30).std().iloc[-1] * np.sqrt(252)) if len(returns) >= 30 else 0.2
     trend30  = float(returns.tail(30).sum()) if len(returns) >= 30 else 0
 
-    suggestion = investment_suggestion(vol, trend30, prob)
+    suggestion = market_context(vol, trend30, prob)
 
     recent = returns.tail(window)
     win_days  = int((recent > 0).sum())
@@ -780,6 +793,7 @@ def get_propagation():
 
 
 @app.route('/api/simulate', methods=['POST'])
+@limiter.limit('20 per minute')
 def simulate():
     """Simulate a shock on one of the 4 core assets."""
     body      = request.get_json(silent=True) or {}

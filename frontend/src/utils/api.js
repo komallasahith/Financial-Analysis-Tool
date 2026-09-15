@@ -1,5 +1,6 @@
 // Central API config
-const BASE = (process.env.REACT_APP_API_BASE || 'http://127.0.0.1:5000/api').replace(/\/$/, '');
+// Use same-origin API routes by default; hosted builds can override this at build time.
+const BASE = (process.env.REACT_APP_API_BASE || '/api').replace(/\/$/, '');
 
 export const toLocalDate = (date = new Date()) => {
   const offset = date.getTimezoneOffset();

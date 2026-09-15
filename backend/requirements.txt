@@ -7,3 +7,4 @@ pyarrow>=17.0.0,<26.0.0
 flask-limiter==3.8.0
 pytest==8.3.3
 pytest-cov==5.0.0
+gunicorn==23.0.0

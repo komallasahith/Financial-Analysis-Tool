@@ -63,7 +63,12 @@ $env:ALLOWED_ORIGINS="http://localhost:3000"
 $env:FLASK_HOST="127.0.0.1"
 $env:FLASK_DEBUG="false"
 $env:REACT_APP_API_BASE="http://localhost:5000/api"
+$env:RATELIMIT_STORAGE_URI="memory://"
 ```
+
+The frontend defaults to relative `/api` requests and uses the Create React App proxy for local development. For separate production hosts, set `REACT_APP_API_BASE` before `npm run build`.
+
+For production, run `backend.wsgi:app` with Gunicorn and configure the platform health check to `GET /api/health`. Keep `/api/ready` for operational diagnostics because it returns `503` when the cache directory is not writable.
 
 ## 6. What to Commit
 

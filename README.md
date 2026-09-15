@@ -25,6 +25,16 @@ npm start
 
 The API uses port `5000`. Create React App uses `3000`; if that port is occupied, use `3001` and keep `ALLOWED_ORIGINS` configured for that port.
 
+For local Create React App development, the frontend proxy sends relative `/api` requests to `http://127.0.0.1:5000`. For production, use `REACT_APP_API_BASE=/api` when a reverse proxy serves both applications from one host, or set the full backend URL before `npm run build` when frontend and backend are hosted separately. Create React App embeds `REACT_APP_*` values at build time.
+
+Run the backend in production with Gunicorn on Linux:
+
+```bash
+gunicorn --workers 2 --threads 4 --timeout 120 --bind 0.0.0.0:$PORT backend.wsgi:app
+```
+
+Use `/api/health` as the platform liveness check. `/api/ready` is an operational readiness check and can return `503` when the cache directory is not writable.
+
 ## Main pages
 
 - **Overview**: latest quotes, daily and weekly movement, annualized volatility, and exportable rows.
@@ -73,10 +83,11 @@ Feature and data-quality details are documented in [METHODOLOGY.md](METHODOLOGY.
 - `CACHE_DIR`: cache directory, default `backend/cache`.
 - `CACHE_TTL_SECONDS`: cache lifetime, default `86400`.
 - `REACT_APP_API_BASE`: frontend API base URL.
+- `RATELIMIT_STORAGE_URI`: rate-limit store, default `memory://`; use shared Redis in multi-worker production.
 
 ## Engineering notes
 
-The backend cache uses versioned hashed Parquet/JSON files rather than pickle. `pyarrow` is required for DataFrame caching. Market calendars are asynchronous; the loader forward-fills at most three rows and drops only rows where all assets are missing. The repository does not currently serve a predictive ML model or claim walk-forward ML validation, quote verification, or predictive performance.
+The backend cache uses versioned hashed Parquet/JSON files rather than pickle. If PyArrow is unavailable, DataFrame cache writes are skipped and the request continues with fresh data. Market calendars are asynchronous; the loader forward-fills at most three rows and drops only rows where all assets are missing. The API applies a global 120 requests-per-minute limit, with stricter limits on quote verification and simulation. The repository does not currently serve a predictive ML model or claim walk-forward ML validation, quote verification, or predictive performance.
 
 ## Validation
 
