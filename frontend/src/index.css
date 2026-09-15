@@ -274,34 +274,10 @@ a { text-decoration: none; color: inherit; }
 /* ───────────────────────────────────────────────────────────
    MODE TOGGLE
 ─────────────────────────────────────────────────────────── */
-.mode-toggle {
-  display: flex;
-  align-items: center;
-  background: var(--bg-card);
-  border: 1px solid var(--border-ui);
-  border-radius: var(--radius-md);
-  padding: 3px;
-  gap: 2px;
-}
-.mode-btn {
-  padding: 5px 12px;
-  border-radius: var(--radius-sm);
-  border: none;
-  font-size: 0.78rem;
-  font-weight: 500;
-  cursor: pointer;
-  transition: var(--transition);
-  background: transparent;
-  color: var(--text-secondary);
-}
-.mode-btn.active-hist {
-  background: var(--teal-dim);
-  color: var(--teal);
-}
-.mode-btn.active-live {
-  background: var(--red-dim);
-  color: var(--red);
-}
+
+
+
+
 .live-dot {
   display: inline-block;
   width: 7px; height: 7px;
@@ -553,9 +529,9 @@ h1, h2, h3, h4, .section-title {
 .btn-primary:hover { background: #0f5149; border-color: #0f5149; }
 .btn-ghost { background: transparent; color: var(--teal); border-color: #b7c4bc; }
 .btn-ghost:hover { background: var(--teal-dim); border-color: var(--teal); }
-.mode-toggle { background: var(--bg-card); border-radius: 999px; }
-.mode-btn { border-radius: 999px; }
-.mode-btn.active-hist { background: var(--teal-dim); color: var(--teal); }
+
+
+
 .form-select, .form-input { background: var(--bg-card); border-radius: 2px; color: var(--text-primary); }
 .telemetry-table { font-family: Inter, sans-serif; }
 .telemetry-table th { background: #eeece5; color: var(--text-secondary); border-color: var(--border-ui); font-size: .68rem; letter-spacing: .06em; }
@@ -710,19 +686,8 @@ h1, h2, h3, h4, .section-title {
 
 /* Fix mode toggle on mobile */
 @media (max-width: 768px) {
-  .mode-toggle {
-    display: flex;
-    flex-direction: column;
-    width: 100%;
-    margin-bottom: 8px;
-  }
-  .mode-btn {
-    flex: 1;
-    white-space: nowrap;
-    text-align: center;
-    padding: 8px 12px;
-    font-size: 0.8rem;
-  }
+  
+  
   
   .terminal-header {
     flex-direction: column;
@@ -796,7 +761,7 @@ h1, h2, h3, h4, .section-title {
     top: 60px;
     left: 0;
     right: 0;
-    background: var(--bg-surface);
+    background: var(--bg-card);\n    border: 1px solid var(--border-ui);
     flex-direction: column;
     padding: 20px;
     border-bottom: 1px solid var(--border-ui);
@@ -823,5 +788,63 @@ h1, h2, h3, h4, .section-title {
 @media (max-width: 900px) {
   .trade-lab-container {
     grid-template-columns: 1fr;
+  }
+}
+
+.telemetry-table-wrapper {
+  overflow-x: auto;
+  width: 100%;
+}
+
+.mode-toggle {
+  display: flex;
+  flex-direction: row;
+  width: 100%;
+  gap: 8px;
+  background: transparent;
+  border-radius: 0;
+  border: none;
+  padding: 0;
+}
+.mode-btn {
+  flex: 1;
+  background: var(--bg-card);
+  color: var(--text-secondary);
+  border: 1px solid var(--border-ui);
+  border-radius: 4px;
+  padding: 10px 16px;
+  font-size: 0.85rem;
+  font-weight: 600;
+  cursor: pointer;
+  text-align: center;
+  white-space: normal;
+  transition: all 0.2s ease;
+  line-height: 1.2;
+}
+.mode-btn.active-hist {
+  background: var(--teal);
+  color: #ffffff;
+  border-color: var(--teal);
+}
+.mode-btn.active-live {
+  background: var(--red);
+  color: #ffffff;
+  border-color: var(--red);
+}
+
+@media (max-width: 768px) {
+  .mode-toggle {
+    flex-direction: column;
+  }
+}
+
+@media (max-width: 768px) {
+  .telemetry-table th, .telemetry-table td {
+    padding: 4px 6px !important;
+    font-size: 0.65rem !important;
+  }
+  .telemetry-table {
+    table-layout: fixed;
+    width: 100%;
   }
 }
