@@ -78,9 +78,16 @@
 /* Trade Simulator Layout */
 .trade-page {
   position: relative;
-  display: grid;
-  grid-template-columns: minmax(280px, 320px) 1fr;
+  display: flex;
+  flex-direction: column;
   gap: 24px;
+}
+
+@media (min-width: 900px) {
+  .trade-page {
+    display: grid;
+    grid-template-columns: minmax(280px, 320px) 1fr;
+  }
 }
 
 .trade-card {
