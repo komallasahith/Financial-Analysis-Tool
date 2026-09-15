@@ -49,6 +49,7 @@ const buildQuery = (params) =>
 const getWithParams = (path, params) => get(`${path}?${buildQuery(params)}`);
 
 export const api = {
+  assetDetail:    (asset, period = '1y', mode = 'historical', start, end) => getWithParams('/asset-detail', { asset, period, mode, start, end }),
   categories:     () => get('/categories'),
   summary:        (period = '1y', mode = 'historical', start, end) => getWithParams('/summary', { period, mode, start, end }),
   priceHistory:   (asset, period = '1y', mode = 'historical', start, end) => getWithParams('/price-history', { asset, period, mode, start, end }),

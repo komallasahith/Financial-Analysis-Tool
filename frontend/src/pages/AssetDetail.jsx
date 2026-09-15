@@ -62,25 +62,20 @@ export default function AssetDetail({ mode, setMode }) {
   useEffect(() => {
     setLoading(true);
     setError(null);
-    Promise.all([
-      api.priceHistory(name, period, mode, startDate, endDate),
-      api.monthlyReturns(name, period === '3mo' ? '1y' : period, mode, startDate, endDate),
-      api.ohlc(name, period, mode, startDate, endDate),
-      api.scatter(name, period, mode, startDate, endDate),
-      api.radar(name, period, mode, startDate, endDate),
-      api.probability(name, period, mode, 60, startDate, endDate),
-    ]).then(([ph, bar, ohlc, scat, rad, prob]) => {
-      setPriceData(ph);
-      setBarData(bar);
-      setOhlcData(ohlc);
-      setScatterData(scat);
-      setRadarData(rad);
-      setProbData(prob);
-      setLoading(false);
-    }).catch((e) => {
-      setError(e?.message || 'Failed to load asset analytics.');
-      setLoading(false);
-    });
+    api.assetDetail(name, period, mode, startDate, endDate)
+      .then((data) => {
+        setPriceData(data.price_history);
+        setBarData(data.monthly_returns);
+        setOhlcData(data.ohlc);
+        setScatterData(data.scatter);
+        setRadarData(data.radar);
+        setProbData(data.probability);
+        setLoading(false);
+      })
+      .catch((e) => {
+        setError(e?.message || 'Failed to load asset analytics.');
+        setLoading(false);
+      });
   }, [name, mode, period, startDate, endDate]);
 
   useEffect(() => {

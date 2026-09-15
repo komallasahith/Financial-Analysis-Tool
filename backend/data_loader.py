@@ -130,6 +130,46 @@ def _normalize_dataframe(df, tickers):
     return df
 
 
+MASTER_CACHE_KEY = "prices_master_5y"
+
+def get_price_data(start_date=None, end_date=None, mode="historical", tickers=None):
+    """
+    Fetch a wide dataset once and cache it, then slice per request.
+    """
+    from datetime import date
+    
+    # Master range: always fetch the widest window we'll ever need
+    master_start = "2021-01-01"  # ~5 years back
+    master_end = date.today().isoformat()
+    
+    if tickers is None:
+        tickers = DEFAULT_TICKERS
+    
+    master = load_from_cache(MASTER_CACHE_KEY, max_age_seconds=86400)
+    if master is None:
+        logger.info(f"Master cache miss — downloading {len(tickers)} tickers")
+        master = yf.download(
+            list(tickers.values()),
+            start=master_start,
+            end=master_end,
+            progress=False,
+            auto_adjust=True,
+            session=get_session(),
+        )
+        save_to_cache(MASTER_CACHE_KEY, master)
+    else:
+        logger.info(f"Master cache hit — serving from {MASTER_CACHE_KEY}")
+    
+    # Slice to the requested range
+    if start_date and end_date:
+        return master.loc[start_date:end_date]
+    elif start_date:
+        return master.loc[start_date:]
+    elif end_date:
+        return master.loc[:end_date]
+    return master
+
+
 def download_historical_data(start_date=None, end_date=None, period="1y", tickers=None):
     if tickers is None:
         tickers = DEFAULT_TICKERS

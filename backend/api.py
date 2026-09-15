@@ -33,6 +33,7 @@ from data_loader import (
     load_with_stale_fallback,
     _load_snapshot,
 )
+from utils import safe_float
 from features import process_price_data
 from shock_detector import detect_shocks
 from propagation_model import analyze_shock_propagation, summarize_propagation
@@ -47,6 +48,7 @@ limiter = Limiter(
     default_limits=['120 per minute'],
     storage_uri=os.getenv('RATELIMIT_STORAGE_URI', 'memory://'),
 )
+
 
 
 def safe_endpoint(fn):
@@ -222,53 +224,15 @@ def fetch_ticker_df(
     start: str = None,
     end: str = None
 ) -> pd.DataFrame:
-    """Fetch OHLCV for one ticker. mode='historical' serves from cache if fresh."""
-    cache_key = f"ohlcv_{ticker_symbol}_{period}_{start or 'none'}_{end or 'none'}"
-    if mode == 'historical':
-        cached = _load_cache(cache_key)
-        if cached is not None and not (hasattr(cached, 'empty') and cached.empty):
-            return cached
-
-    session = get_session()
-
-    def _do_fetch():
-        if start or end:
-            return fetch_with_retry(
-                yf.download,
-                ticker_symbol,
-                start=start,
-                end=end,
-                progress=False,
-                auto_adjust=True,
-                session=session,
-            )
-        else:
-            return fetch_with_retry(
-                yf.download,
-                ticker_symbol,
-                period=period,
-                progress=False,
-                auto_adjust=True,
-                session=session,
-            )
-
-    try:
-        df = _do_fetch()
-        if df is not None and not df.empty and mode == 'historical':
-            _save_cache(cache_key, df)
-        return df
-    except Exception as e:
-        logger.warning(f"Fetch failed for {ticker_symbol}: {e}")
-        if mode == 'historical':
-            stale = _load_cache(cache_key, max_age_seconds=None)
-            if stale is not None and not (hasattr(stale, 'empty') and stale.empty):
-                logger.info(f"Serving stale cache for {ticker_symbol}")
-                return stale
-        snapshot_df = _load_snapshot(ticker_symbol)
-        if snapshot_df is not None and not snapshot_df.empty:
-            logger.info(f"Serving snapshot data for {ticker_symbol}")
-            return snapshot_df
-        return pd.DataFrame()
+    """Fetch OHLCV for one ticker using master cache."""
+    from data_loader import get_price_data
+    master = get_price_data(start_date=start, end_date=end, mode=mode)
+    
+    if isinstance(master.columns, pd.MultiIndex):
+        if ticker_symbol in master.columns.get_level_values(1):
+            return master.xs(ticker_symbol, level=1, axis=1)
+    
+    return pd.DataFrame()
 
 
 def fetch_core_closes(
@@ -277,17 +241,10 @@ def fetch_core_closes(
     start: str = None,
     end: str = None
 ) -> pd.DataFrame:
-    """Fetch close prices for the core assets with optional range support."""
-    cache_key = f"core_closes_{period}_{start or 'none'}_{end or 'none'}"
-    if mode == 'historical':
-        cached = _load_cache(cache_key)
-        if cached is not None and not (hasattr(cached, 'empty') and cached.empty):
-            return cached
-
-    df = download_historical_data(start_date=start, end_date=end, period=period)
-    if mode == 'historical' and df is not None and not df.empty:
-        _save_cache(cache_key, df)
-    return df
+    """Fetch close prices for the core assets using master cache."""
+    from data_loader import get_price_data, DEFAULT_TICKERS, _normalize_dataframe
+    master = get_price_data(start_date=start, end_date=end, mode=mode)
+    return _normalize_dataframe(master, DEFAULT_TICKERS)
 
 
 def flatten_columns(df: pd.DataFrame) -> pd.DataFrame:
@@ -317,8 +274,8 @@ def fetch_live_quote(ticker_symbol: str) -> dict:
         close = df['Close'].dropna()
         if len(close) == 0:
             return {}
-        current = float(close.iloc[-1])
-        previous = float(close.iloc[-2]) if len(close) >= 2 else current
+        current = safe_float(close.iloc[-1])
+        previous = safe_float(close.iloc[-2]) if len(close) >= 2 else current
         last_updated = close.index[-1]
         if hasattr(last_updated, 'strftime'):
             last_updated = last_updated.strftime('%Y-%m-%d %H:%M')
@@ -345,7 +302,7 @@ def probability_positive(returns_series: pd.Series, window: int = 60) -> float:
     recent = returns_series.dropna().tail(window)
     if len(recent) == 0:
         return 50.0
-    return round(float((recent > 0).sum() / len(recent) * 100), 1)
+    return round(safe_float((recent > 0).sum() / len(recent) * 100), 1)
 
 
 def market_context(vol: float, trend_30d: float, prob: float) -> dict:
@@ -481,7 +438,7 @@ def data_quality():
         'effective_end': str(df.index.max())[:10],
         'row_count': int(len(df)),
         'assets': {
-            asset: {'missing_pct': round(float(df[asset].isna().mean() * 100), 2)}
+            asset: {'missing_pct': round(safe_float(df[asset].isna().mean() * 100), 2)}
             for asset in df.columns
         },
     })
@@ -551,17 +508,17 @@ def get_summary():
             if len(close) < 5:
                 continue
 
-            current  = float(close.iloc[-1])
-            prev     = float(close.iloc[-2])
+            current  = safe_float(close.iloc[-1])
+            prev     = safe_float(close.iloc[-2])
             chg_pct  = (current - prev) / prev * 100
-            week_ago = float(close.iloc[-6]) if len(close) >= 6 else prev
+            week_ago = safe_float(close.iloc[-6]) if len(close) >= 6 else prev
             wk_chg   = (current - week_ago) / week_ago * 100
 
             returns = close.pct_change().dropna()
-            vol = float(returns.rolling(30).std().iloc[-1] * np.sqrt(252) * 100) if len(returns) >= 30 else 0
+            vol = safe_float(returns.rolling(30).std().iloc[-1] * np.sqrt(252) * 100) if len(returns) >= 30 else 0
 
             # 7-day sparkline
-            sparkline = [round(float(p), 4) for p in close.tail(7).values]
+            sparkline = [round(safe_float(p), 4) for p in close.tail(7).values]
 
             category = next((c for c, assets in CATEGORIES.items() if name in assets), 'Other')
 
@@ -591,6 +548,106 @@ def get_summary():
 
 @app.route('/api/price-history', methods=['GET'])
 @safe_endpoint
+
+@app.route('/api/asset-detail', methods=['GET'])
+@safe_endpoint
+def get_asset_detail():
+    asset = request.args.get('asset')
+    period = request.args.get('period', '1y')
+    mode = request.args.get('mode', 'historical')
+    start = request.args.get('start')
+    end = request.args.get('end')
+    
+    ticker = TICKERS.get(asset)
+    if not ticker:
+        return jsonify({'error': 'invalid_asset', 'asset': asset}), 400
+        
+    df = fetch_ticker_df(ticker, period, mode, start, end)
+    df = flatten_columns(df)
+    if df.empty or 'Close' not in df.columns:
+        raise ValueError("No data available")
+        
+    # We will invoke the logic for each component directly or just recreate it here
+    close = df['Close'].dropna()
+    returns = close.pct_change().dropna()
+    
+    # 1. Price History
+    normalized = close / close.iloc[0] * 100
+    price_history = {
+        'dates':      [str(d.date()) for d in close.index],
+        'prices':     [round(safe_float(p), 4)                for p in close.values],
+        'normalized': [round(safe_float(n), 2)                for n in normalized.values],
+        'returns':    [round(safe_float(r) * 100, 4) if not np.isnan(r) else 0 for r in returns.values],
+        'current_price':     round(safe_float(close.iloc[-1]), 4),
+        'start_price':       round(safe_float(close.iloc[0]), 4),
+        'total_return_pct':  round((safe_float(close.iloc[-1]) - safe_float(close.iloc[0])) / safe_float(close.iloc[0]) * 100, 2),
+    }
+    
+    # 2. OHLC
+    df_ohlc = df[['Open', 'High', 'Low', 'Close']].dropna()
+    ohlc = []
+    for date, row in df_ohlc.iterrows():
+        ohlc.append({
+            'x': str(date.date()),
+            'y': [
+                round(safe_float(row['Open']), 4),
+                round(safe_float(row['High']), 4),
+                round(safe_float(row['Low']), 4),
+                round(safe_float(row['Close']), 4),
+            ]
+        })
+        
+    # 3. Monthly Returns
+    df_mon = df.copy()
+    df_mon['Month'] = df_mon.index.to_period('M')
+    monthly = df_mon.groupby('Month')['Close'].apply(lambda x: (x.iloc[-1] / x.iloc[0]) - 1).dropna() * 100
+    monthly_returns = {
+        'months':  [str(m) for m in monthly.index],
+        'returns': [round(safe_float(r), 2)   for r in monthly.values],
+    }
+    
+    # 4. Scatter
+    rolling_vol = returns.rolling(20).std() * np.sqrt(252) * 100
+    combo = pd.DataFrame({'r': returns * 100, 'v': rolling_vol}).dropna()
+    scatter = {
+        'points': [{'x': round(safe_float(r['v']), 4), 'y': round(safe_float(r['r']), 4)} for _, r in combo.iterrows()],
+    }
+    
+    # 5. Radar
+    if len(close) >= 30:
+        vol = safe_float(returns.rolling(30).std().iloc[-1] * np.sqrt(252) * 100)
+        ann_return = safe_float(returns.mean() * 252 * 100)
+        total_return = safe_float((close.iloc[-1] - close.iloc[0]) / close.iloc[0] * 100)
+        prob = probability_positive(returns)
+        radar = {
+            'assets': [{
+                'asset': asset,
+                'icon': ASSET_ICONS.get(asset, '📊'),
+                'annualized_return': round(ann_return, 2),
+                'volatility': round(vol, 2),
+                'total_return': round(total_return, 2),
+                'probability_positive': prob,
+            }]
+        }
+    else:
+        radar = {'assets': []}
+        
+    # 6. Probability
+    prob_val = probability_positive(returns, window=60)
+    
+    return jsonify({
+        'asset': asset,
+        'period': period,
+        'mode': mode,
+        'price_history': price_history,
+        'ohlc': ohlc,
+        'monthly_returns': monthly_returns,
+        'scatter': scatter,
+        'radar': radar,
+        'probability': prob_val
+    })
+
+
 def get_price_history():
     """Line / Area chart — Close prices over time."""
     asset  = request.args.get('asset', 'Gold')
@@ -622,12 +679,12 @@ def get_price_history():
         'mode': mode,
         'period': period,
         'dates':      [str(d)[:10]                       for d in close.index],
-        'prices':     [round(float(p), 4)                for p in close.values],
-        'normalized': [round(float(n), 2)                for n in normalized.values],
-        'returns':    [round(float(r) * 100, 4) if not np.isnan(r) else 0 for r in returns.values],
-        'current_price':     round(float(close.iloc[-1]), 4),
-        'start_price':       round(float(close.iloc[0]), 4),
-        'total_return_pct':  round((float(close.iloc[-1]) - float(close.iloc[0])) / float(close.iloc[0]) * 100, 2),
+        'prices':     [round(safe_float(p), 4)                for p in close.values],
+        'normalized': [round(safe_float(n), 2)                for n in normalized.values],
+        'returns':    [round(safe_float(r) * 100, 4) if not np.isnan(r) else 0 for r in returns.values],
+        'current_price':     round(safe_float(close.iloc[-1]), 4),
+        'start_price':       round(safe_float(close.iloc[0]), 4),
+        'total_return_pct':  round((safe_float(close.iloc[-1]) - safe_float(close.iloc[0])) / safe_float(close.iloc[0]) * 100, 2),
         'last_updated': datetime.now().strftime('%Y-%m-%d %H:%M IST'),
     })
 
@@ -663,10 +720,10 @@ def get_ohlc():
         {
             'x': str(date)[:10],
             'y': [
-                round(float(row['Open']), 4),
-                round(float(row['High']), 4),
-                round(float(row['Low']), 4),
-                round(float(row['Close']), 4),
+                round(safe_float(row['Open']), 4),
+                round(safe_float(row['High']), 4),
+                round(safe_float(row['Low']), 4),
+                round(safe_float(row['Close']), 4),
             ],
         }
         for date, row in df.iterrows()
@@ -705,7 +762,7 @@ def get_monthly_returns():
         'asset': asset,
         'mode': mode,
         'months':  [str(d)[:7]           for d in monthly_ret.index],
-        'returns': [round(float(r), 2)   for r in monthly_ret.values],
+        'returns': [round(safe_float(r), 2)   for r in monthly_ret.values],
     })
 
 
@@ -739,7 +796,7 @@ def get_scatter():
     return jsonify({
         'asset': asset,
         'mode': mode,
-        'points': [{'x': round(float(r['v']), 4), 'y': round(float(r['r']), 4)} for _, r in combo.iterrows()],
+        'points': [{'x': round(safe_float(r['v']), 4), 'y': round(safe_float(r['r']), 4)} for _, r in combo.iterrows()],
     })
 
 
@@ -768,9 +825,9 @@ def get_radar():
             if len(close) < 30:
                 continue
             returns = close.pct_change().dropna()
-            vol          = float(returns.rolling(30).std().iloc[-1] * np.sqrt(252) * 100)
-            ann_return   = float(returns.mean() * 252 * 100)
-            total_return = float((close.iloc[-1] - close.iloc[0]) / close.iloc[0] * 100)
+            vol          = safe_float(returns.rolling(30).std().iloc[-1] * np.sqrt(252) * 100)
+            ann_return   = safe_float(returns.mean() * 252 * 100)
+            total_return = safe_float((close.iloc[-1] - close.iloc[0]) / close.iloc[0] * 100)
             prob         = probability_positive(returns)
 
             data.append({
@@ -823,8 +880,8 @@ def get_probability():
     returns = close.pct_change().dropna()
 
     prob     = probability_positive(returns, window)
-    vol      = float(returns.rolling(30).std().iloc[-1] * np.sqrt(252)) if len(returns) >= 30 else 0.2
-    trend30  = float(returns.tail(30).sum()) if len(returns) >= 30 else 0
+    vol      = safe_float(returns.rolling(30).std().iloc[-1] * np.sqrt(252)) if len(returns) >= 30 else 0.2
+    trend30  = safe_float(returns.tail(30).sum()) if len(returns) >= 30 else 0
 
     suggestion = market_context(vol, trend30, prob)
 
@@ -848,7 +905,7 @@ def get_probability():
         'suggestion': suggestion,
         'rolling_probability': {
             'dates':  [str(d)[:10]          for d in roll_prob.index],
-            'values': [round(float(v), 1)   for v in roll_prob.values],
+            'values': [round(safe_float(v), 1)   for v in roll_prob.values],
         },
     })
 
@@ -861,7 +918,7 @@ def get_shocks():
     start     = request.args.get('start')
     end       = request.args.get('end')
     try:
-        threshold = float(request.args.get('threshold', 0.06))
+        threshold = safe_float(request.args.get('threshold', 0.06))
     except (TypeError, ValueError):
         return jsonify({'error': 'threshold must be a number'}), 400
 
@@ -910,7 +967,7 @@ def get_propagation():
     start     = request.args.get('start')
     end       = request.args.get('end')
     try:
-        threshold = float(request.args.get('threshold', 0.06))
+        threshold = safe_float(request.args.get('threshold', 0.06))
     except (TypeError, ValueError):
         return jsonify({'error': 'threshold must be a number'}), 400
 
@@ -941,7 +998,7 @@ def get_propagation():
     for _, row in summary.iterrows():
         src, tgt = row['Source_Asset'], row['Target_Asset']
         if src in matrix and tgt in matrix[src]:
-            matrix[src][tgt] = round(float(row['Avg_Impact']) * 100, 4)
+            matrix[src][tgt] = round(safe_float(row['Avg_Impact']) * 100, 4)
 
     result = {
         'mode': mode,
@@ -963,7 +1020,7 @@ def simulate():
     body      = request.get_json(silent=True) or {}
     asset     = body.get('asset', 'BrentOil')
     try:
-        shock_pct = float(body.get('shock_pct', 10))
+        shock_pct = safe_float(body.get('shock_pct', 10))
     except (TypeError, ValueError):
         return jsonify({'error': 'shock_pct must be a number'}), 400
 
@@ -974,7 +1031,7 @@ def simulate():
     end       = body.get('end')
     mode      = body.get('mode', 'historical')
     try:
-        threshold = float(body.get('threshold', 0.06))
+        threshold = safe_float(body.get('threshold', 0.06))
     except (TypeError, ValueError):
         return jsonify({'error': 'threshold must be a number'}), 400
     if threshold <= 0 or threshold > 1:
@@ -997,7 +1054,7 @@ def simulate():
     rel_map = build_relationship_map(summary)
 
     shock_baseline = shocks['Return'].abs().median() if not shocks.empty else threshold
-    raw = simulate_shock(rel_map, asset, shock_pct / 100, baseline=float(shock_baseline))
+    raw = simulate_shock(rel_map, asset, shock_pct / 100, baseline=safe_float(shock_baseline))
     impacts = [
         {
             'target': k,

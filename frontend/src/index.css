@@ -642,3 +642,68 @@ h1, h2, h3, h4, .section-title {
   .assets-grid    { grid-template-columns: 1fr; }
   .dashboard-hero, .analysis-hero { padding: 20px 16px; }
 }
+
+.desktop-only { display: block; }
+.mobile-only { display: none; }
+
+.mobile-asset-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 12px 0;
+}
+
+.mobile-asset-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border-ui);
+  border-radius: var(--radius-md);
+  padding: 16px;
+  box-shadow: var(--shadow-card);
+  cursor: pointer;
+  transition: var(--transition);
+}
+
+.mobile-asset-card:active {
+  background: var(--bg-card-hover);
+}
+
+.mac-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8px;
+}
+
+.mac-title {
+  font-weight: bold;
+  font-size: 1rem;
+  color: var(--text-primary);
+}
+
+.mac-ticker {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  margin-left: 6px;
+}
+
+.mac-price {
+  font-family: 'Fira Code', monospace;
+  font-weight: 600;
+  font-size: 1.05rem;
+}
+
+.mac-body {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 0.85rem;
+}
+
+.mac-vol {
+  color: var(--text-secondary);
+}
+
+@media (max-width: 768px) {
+  .desktop-only { display: none !important; }
+  .mobile-only { display: block !important; }
+}

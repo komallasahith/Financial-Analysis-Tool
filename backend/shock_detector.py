@@ -1,4 +1,5 @@
 import pandas as pd
+from utils import safe_float
 
 
 def detect_shocks(df, threshold=0.06, mode='fixed_pct', z_threshold=3.0, rolling_window=60):
@@ -26,7 +27,7 @@ def detect_shocks(df, threshold=0.06, mode='fixed_pct', z_threshold=3.0, rolling
                 rolling_std = df[col].rolling(rolling_window, min_periods=20).std()
                 scale = rolling_std.loc[date]
                 is_shock = pd.notna(scale) and scale > 0 and abs(value / scale) > z_threshold
-                z_score = float(value / scale) if pd.notna(scale) and scale > 0 else None
+                z_score = safe_float(value / scale) if pd.notna(scale) and scale > 0 else None
             else:
                 is_shock = abs(value) > threshold
                 z_score = None

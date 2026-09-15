@@ -143,7 +143,9 @@ export default function Dashboard({ mode, setMode }) {
             <div>Loading market data...</div>
           </div>
         ) : (
-          <div className="telemetry-table-wrapper">
+          
+          <>
+          <div className="desktop-only telemetry-table-wrapper">
             <table className="telemetry-table">
               <thead>
                 <tr>
@@ -200,6 +202,30 @@ export default function Dashboard({ mode, setMode }) {
               </tbody>
             </table>
           </div>
+          
+          <div className="mobile-only mobile-asset-list">
+            {(data?.assets || []).map(asset => {
+                  const ticker = TICKER_MAP[asset.name] || `[${asset.name}]`;
+                  const priceStr = asset.price ? `${asset.currency === 'INR' ? '₹' : '$'}${asset.price.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : 'N/A';
+                  const changeSign = asset.change_pct >= 0 ? '+' : '';
+                  const changeColor = asset.change_pct >= 0 ? 'var(--green)' : 'var(--red)';
+                  
+                  return (
+                    <div key={asset.name} className="mobile-asset-card" onClick={() => navigate(`/asset/${asset.name}`)}>
+                      <div className="mac-header">
+                        <div className="mac-title">{asset.name} <span className="mac-ticker">{ticker}</span></div>
+                        <div className="mac-price">{priceStr}</div>
+                      </div>
+                      <div className="mac-body">
+                        <div className="mac-delta" style={{ color: changeColor, fontWeight: 'bold' }}>{changeSign}{asset.change_pct.toFixed(2)}%</div>
+                        <div className="mac-vol">Vol: {asset.volatility_pct.toFixed(2)}%</div>
+                      </div>
+                    </div>
+                  )
+            })}
+          </div>
+          </>
+
         )}
 
         {data?.assets?.length > 0 && (
