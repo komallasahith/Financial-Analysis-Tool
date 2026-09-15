@@ -1,5 +1,10 @@
 # MarketPulse
 
+**Author:** Komalla Sahith  
+**Repository:** https://github.com/komallasahith/Financial-Analysis-Tool  
+**Live Demo:** https://financial-analysis-tool-two.vercel.app  
+**Backend API:** https://financial-analysis-tool.onrender.com
+
 MarketPulse is an educational market-research desk for comparing indices, commodities, crypto assets, US equities, and Indian equities. It loads adjusted Yahoo Finance prices, calculates transparent historical features, detects unusual moves, measures short-horizon cross-asset propagation, and runs illustrative shock scenarios.
 
 **This is not investment advice.** Results are historical and illustrative. They are not predictions, recommendations, or validated live-trading signals.

@@ -143,7 +143,7 @@ export default function Dashboard({ mode, setMode }) {
             <div>Loading market data...</div>
           </div>
         ) : (
-          <div style={{ overflowX: 'auto' }}>
+          <div className="telemetry-table-wrapper">
             <table className="telemetry-table">
               <thead>
                 <tr>

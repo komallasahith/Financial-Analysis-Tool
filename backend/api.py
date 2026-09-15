@@ -129,10 +129,11 @@ CATEGORIES = {
     'Energy':            ['BrentOil', 'WTICrude', 'NaturalGas'],
     'Crypto':            ['Bitcoin', 'Ethereum'],
     'Industrial Metals': ['Copper'],
+    'Indian Equities':   ['Reliance', 'HDFCBank'],
     'Large Cap Stocks':  [
         'Apple', 'Microsoft', 'Amazon', 'Tesla', 'Nvidia', 'Meta',
         'Alphabet', 'Broadcom', 'AMD', 'Netflix', 'JPMorgan',
-        'Berkshire', 'Reliance', 'HDFCBank'
+        'Berkshire'
     ],
 }
 
@@ -142,6 +143,7 @@ CATEGORY_ICONS = {
     'Energy':            'ENG',
     'Crypto':            'CR',
     'Industrial Metals': 'MTL',
+    'Indian Equities':   'IND',
     'Large Cap Stocks':  'STK',
 }
 
@@ -566,7 +568,7 @@ def get_summary():
             results.append({
                 'name': name,
                 'ticker': ticker,
-                'currency': 'INR' if ticker.endswith('.NS') else 'USD',
+                'currency': 'INR' if name == 'NIFTY' or ticker.endswith('.NS') else 'USD',
                 'icon': ASSET_ICONS.get(name, name[:3]),
                 'category': category,
                 'category_icon': CATEGORY_ICONS.get(category, category[:3].upper()),

@@ -58,8 +58,8 @@ export default function Analysis({ mode, setMode }) {
     setLoading(true);
     setError(null);
     Promise.all([
-      api.propagation(period, 0.06, mode, startDate, endDate),
-      api.shocks(period, 0.06, mode, startDate, endDate),
+      api.propagation(period, 0.06, mode, startDate, endDate, 'z_score'),
+      api.shocks(period, 0.06, mode, startDate, endDate, 'z_score'),
       api.radar('', period, mode, startDate, endDate),
       api.algorithms(),
     ]).then(([prop, sh, rad, alg]) => {
@@ -154,7 +154,7 @@ export default function Analysis({ mode, setMode }) {
             {/* Propagation Heatmap */}
             <div>
               <div className="content-section-title">
-                Shock propagation map
+                Directed Impact Matrix
               </div>
               <div className="panel-card" style={{ padding: 20 }}>
                 <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginBottom: 16 }}>
@@ -162,7 +162,7 @@ export default function Analysis({ mode, setMode }) {
                   Green = positive delta, Red = negative delta.
                 </p>
                 {assets.length > 0 ? (
-                  <div style={{ overflowX: 'auto' }}>
+                  <div className="telemetry-table-wrapper">
                     <table style={{ width: '100%', borderCollapse: 'separate', borderSpacing: 6 }}>
                       <thead>
                         <tr>
@@ -242,7 +242,7 @@ export default function Analysis({ mode, setMode }) {
                 <div className="content-section-title">
                   Recent shock events
                 </div>
-                <div className="panel-card" style={{ overflowX: 'auto' }}>
+                <div className="panel-card telemetry-table-wrapper">
                   <table className="telemetry-table" style={{ marginTop: 0 }}>
                     <thead>
                       <tr>
