@@ -17,13 +17,14 @@ def build_relationship_map(summary_df):
     return relation_map
 
 
-def simulate_shock(relation_map, asset, shock_value):
+def simulate_shock(relation_map, asset, shock_value, baseline=None):
     if asset not in relation_map:
         return {"error": "Asset not found"}
 
     results = {}
 
-    baseline = 0.06  # baseline shock used in training
+    if baseline is None or baseline <= 0:
+        return {"error": "A positive shock baseline is required"}
 
     for target, impact in relation_map[asset].items():
         scale_factor = shock_value / baseline

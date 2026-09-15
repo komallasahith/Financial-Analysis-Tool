@@ -38,8 +38,9 @@ def process_price_data(df):
 
     result = pd.concat([result, returns, volatility, normalized], axis=1)
 
-    # IMPORTANT: remove NaN rows
-    result = result.dropna()
+    # Keep asynchronous asset calendars usable without inventing long runs of
+    # stale prices. Feature-specific NaNs remain visible to downstream code.
+    result = result.ffill(limit=3).dropna(how='all')
 
     return result
 

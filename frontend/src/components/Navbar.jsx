@@ -9,16 +9,18 @@ export default function Navbar() {
   return (
     <nav className="navbar">
       <NavLink to="/" className="navbar-logo">
-        <img src="/marketpulse-logo.svg" alt="MarketPulse logo" className="navbar-logo-icon" />
-        <span>MarketPulse</span>
+        <img src="/marketpulse-logo.svg" alt="" className="navbar-logo-icon" />
+        <span><strong>Market</strong>Pulse</span>
       </NavLink>
 
       <ul className="navbar-links">
-        <li><NavLink to="/"          className={({isActive}) => isActive ? 'active' : ''}>Dashboard</NavLink></li>
-        <li><NavLink to="/analysis"  className={({isActive}) => isActive ? 'active' : ''}>Analysis</NavLink></li>
-        <li><NavLink to="/simulator" className={({isActive}) => isActive ? 'active' : ''}>Simulator</NavLink></li>
-        <li><NavLink to="/trade"     className={({isActive}) => isActive ? 'active' : ''}>Demo Trade</NavLink></li>
+        <li><NavLink to="/" end className={({isActive}) => isActive ? 'active' : ''}>Overview</NavLink></li>
+        <li><NavLink to="/analysis" className={({isActive}) => isActive ? 'active' : ''}>Cross-asset</NavLink></li>
+        <li><NavLink to="/simulator" className={({isActive}) => isActive ? 'active' : ''}>Scenarios</NavLink></li>
+        <li><NavLink to="/trade" className={({isActive}) => isActive ? 'active' : ''}>Trade lab</NavLink></li>
+        <li><NavLink to="/how-it-works" className={({isActive}) => isActive ? 'active' : ''}>How it works</NavLink></li>
       </ul>
+      <div className="navbar-meta"><span className="market-status-dot" /> Markets open</div>
     </nav>
   );
 }

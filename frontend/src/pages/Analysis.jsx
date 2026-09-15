@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { api } from '../utils/api';
+import { api, toLocalDate } from '../utils/api';
 import ModeToggle from '../components/ModeToggle';
 import TerminalWindow from '../components/TerminalWindow';
 import RadarChart from '../components/charts/RadarChart';
@@ -23,7 +23,7 @@ function HeatmapCell({ value }) {
 }
 
 export default function Analysis({ mode, setMode }) {
-  const today = new Date().toISOString().slice(0, 10);
+  const today = toLocalDate();
   const PERIOD_LABELS = {
     '3mo': 'Last 3 months',
     '6mo': 'Last 6 months',
@@ -37,7 +37,7 @@ export default function Analysis({ mode, setMode }) {
     if (periodKey === '6mo') date.setMonth(date.getMonth() - 6);
     if (periodKey === '1y') date.setFullYear(date.getFullYear() - 1);
     if (periodKey === '2y') date.setFullYear(date.getFullYear() - 2);
-    return date.toISOString().slice(0, 10);
+    return toLocalDate(date);
   };
 
   const [period, setPeriod] = useState('1y');
@@ -95,8 +95,8 @@ export default function Analysis({ mode, setMode }) {
       <TerminalWindow title="~/system-analysis">
         <div className="telemetry-header-row" style={{ marginBottom: 20 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '16px', flexWrap: 'wrap' }}>
-            <span className="badge badge-blue" style={{ fontWeight: 800 }}>ANALYSIS_OPS_NODE</span>
-            <span style={{ color: 'var(--terminal-green)', fontSize: '0.85rem', fontWeight: 'bold' }}>CROSS_ASSET_ANALYSIS</span>
+            <span className="badge badge-blue" style={{ fontWeight: 800 }}>Cross-asset view</span>
+            <span style={{ color: 'var(--terminal-green)', fontSize: '0.85rem', fontWeight: 'bold' }}>Relationships and shocks</span>
             <ModeToggle mode={mode} setMode={setMode} />
           </div>
 
@@ -141,20 +141,20 @@ export default function Analysis({ mode, setMode }) {
         {loading ? (
           <div style={{ padding: 40, textAlign: 'center', color: 'var(--text-secondary)' }}>
             <span className="spinner-ring" style={{ display: 'inline-block', marginBottom: 12 }} />
-            <div>COMPUTING CORRELATION MATRICES...</div>
+            <div>Preparing cross-asset analysis...</div>
           </div>
         ) : (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
             {error && (
               <div className="error-box">
-                SYSTEM ERROR: {error}
+                Unable to load analysis: {error}
               </div>
             )}
 
             {/* Propagation Heatmap */}
             <div>
-              <div style={{ color: '#00ff00', fontSize: '0.85rem', fontWeight: 'bold', borderBottom: '1px solid var(--border-ui)', paddingBottom: 8, marginBottom: 12 }}>
-                :: SHOCK_PROPAGATION_HEATMAP
+              <div className="content-section-title">
+                Shock propagation map
               </div>
               <div className="panel-card" style={{ padding: 20 }}>
                 <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginBottom: 16 }}>
@@ -199,8 +199,8 @@ export default function Analysis({ mode, setMode }) {
 
             {/* Shock Frequency */}
             <div>
-              <div style={{ color: '#00ff00', fontSize: '0.85rem', fontWeight: 'bold', borderBottom: '1px solid var(--border-ui)', paddingBottom: 8, marginBottom: 12 }}>
-                :: SHOCK_FREQUENCY_BY_ASSET ({shocks?.total_shocks || 0} TOTAL SHOCKS DETECTED)
+              <div className="content-section-title">
+                Shock frequency by asset ({shocks?.total_shocks || 0} detected)
               </div>
               <div className="panel-card" style={{ padding: 20 }}>
                 <BarChart
@@ -213,8 +213,8 @@ export default function Analysis({ mode, setMode }) {
 
             {/* Radar - All assets comparison */}
             <div>
-              <div style={{ color: '#00ff00', fontSize: '0.85rem', fontWeight: 'bold', borderBottom: '1px solid var(--border-ui)', paddingBottom: 8, marginBottom: 12 }}>
-                :: MULTI_ASSET_RADAR_COMPARISON
+              <div className="content-section-title">
+                Multi-asset comparison
               </div>
               <div className="panel-card" style={{ padding: 20 }}>
                 <RadarChart assets={(radar?.assets || []).slice(0, 6)} />
@@ -223,8 +223,8 @@ export default function Analysis({ mode, setMode }) {
 
             {/* Algorithm details */}
             <div>
-              <div style={{ color: '#00ff00', fontSize: '0.85rem', fontWeight: 'bold', borderBottom: '1px solid var(--border-ui)', paddingBottom: 8, marginBottom: 12 }}>
-                :: DEPLOYED_ANALYSIS_ALGORITHMS
+              <div className="content-section-title">
+                Methods used
               </div>
               <div className="algo-grid">
                 {algorithms.map(algo => (
@@ -239,8 +239,8 @@ export default function Analysis({ mode, setMode }) {
             {/* Recent Shocks Table */}
             {shocks?.shocks?.length > 0 && (
               <div>
-                <div style={{ color: '#00ff00', fontSize: '0.85rem', fontWeight: 'bold', borderBottom: '1px solid var(--border-ui)', paddingBottom: 8, marginBottom: 12 }}>
-                  :: HISTORICAL_SHOCK_EVENTS_LOG
+                <div className="content-section-title">
+                  Recent shock events
                 </div>
                 <div className="panel-card" style={{ overflowX: 'auto' }}>
                   <table className="telemetry-table" style={{ marginTop: 0 }}>

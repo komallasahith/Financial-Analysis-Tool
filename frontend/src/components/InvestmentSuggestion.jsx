@@ -69,7 +69,7 @@ export default function InvestmentSuggestion({ data }) {
             className="prob-bar-fill"
             style={{
               width: `${probability_positive}%`,
-              background: `linear-gradient(90deg, ${scoreColor}, ${scoreColor}aa)`,
+              background: scoreColor,
             }}
           />
         </div>

@@ -10,7 +10,7 @@
   align-items: center;
   padding: 0 32px;
   gap: 24px;
-  background: #090d14;
+  background: var(--bg-base);
   border-bottom: 1px solid var(--border-ui);
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
   transition: var(--transition);
@@ -28,8 +28,9 @@
 }
 
 .navbar-logo-icon {
-  width: 28px;
-  height: 28px;
+  width: 30px;
+  height: 30px;
+  display: block;
 }
 
 .navbar-links {
@@ -552,8 +553,74 @@
   justify-content: space-between;
   align-items: center;
   padding: 12px 16px;
-  background: #000000;
+  background: var(--bg-card);
   border-bottom: 1px solid var(--border-ui);
   flex-wrap: wrap;
   gap: 12px;
 }
+
+/* Keep component-specific rules aligned with the flat research-desk system. */
+.navbar { background: rgba(248, 247, 243, .96); border-bottom: 1px solid #d9d5ca; box-shadow: 0 1px 0 rgba(29,37,34,.03); }
+.navbar-logo { color: #1d2522; font-family: Georgia, "Times New Roman", serif; }
+.navbar-logo strong { color: #176b61; font-weight: 400; }
+.navbar-mark { display: grid; place-items: center; width: 28px; height: 28px; background: #176b61; color: #fff; font: 700 1rem Georgia, serif; }
+.navbar-links a { border-radius: 0; color: #66716b; padding: 23px 13px 21px; border-bottom: 2px solid transparent; }
+.navbar-links a:hover, .navbar-links a.active { background: transparent; color: #1d2522; border-bottom-color: #176b61; }
+.navbar-meta { color: #66716b; font-size: .72rem; letter-spacing: .05em; text-transform: uppercase; }
+.market-status-dot { display: inline-block; width: 7px; height: 7px; margin-right: 6px; background: #19715a; border-radius: 50%; }
+.terminal-window { background: transparent; border: 0; box-shadow: none; }
+.terminal-header { background: transparent; border-bottom: 1px solid #d9d5ca; padding: 18px 0 12px; }
+.terminal-title { color: #1d2522; font-family: Georgia, "Times New Roman", serif; letter-spacing: -.02em; text-transform: capitalize; }
+.terminal-header-note { color: #92988f; font-size: .72rem; letter-spacing: .05em; text-transform: uppercase; }
+.terminal-body { padding: 22px 0 0; }
+.asset-card, .algo-card, .trade-card, .verification-card { background: #fffefa; border-color: #d9d5ca; box-shadow: 0 1px 2px rgba(29,37,34,.06); border-radius: 3px; }
+.asset-card:hover { background: #fffefa; border-color: #a9b1a8; }
+.form-select, .form-input { background: #fffefa; color: #1d2522; border-color: #d9d5ca; }
+.welcome-overlay { background: rgba(29, 37, 34, .32); }
+.welcome-card { background: #fffefa; border-color: #d9d5ca; border-radius: 4px; box-shadow: 0 14px 40px rgba(29,37,34,.16); }
+.telemetry-header-row { background: transparent; border-bottom-color: #d9d5ca; }
+.telemetry-table th { background: #eeece5; color: #66716b; border-color: #d9d5ca; }
+.telemetry-table td { color: #1d2522; border-color: #e8e4da; text-transform: none; }
+.telemetry-table { font-family: Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
+.telemetry-table tr:hover td { background: #f4f2ec; }
+.panel-card { background: #fffefa; border-color: #d9d5ca; box-shadow: 0 1px 2px rgba(29,37,34,.06); }
+.panel-card:hover { border-color: #a9b1a8; }
+.content-section-title { color: var(--teal); font-size: .82rem; font-weight: 700; border-bottom: 1px solid var(--border-ui); padding-bottom: 8px; margin-bottom: 12px; }
+
+.education-intro {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(260px, 360px);
+  gap: 32px;
+  align-items: end;
+  padding: 18px 0 34px;
+  border-bottom: 1px solid var(--border-ui);
+}
+.education-intro h1 { margin: 14px 0 8px; font-size: clamp(2rem, 4vw, 3.6rem); font-weight: 400; }
+.education-intro p { max-width: 620px; color: var(--text-secondary); line-height: 1.65; }
+.education-disclaimer { display: flex; flex-direction: column; gap: 8px; padding: 16px 18px; border-left: 3px solid var(--gold); background: var(--gold-dim); color: var(--text-secondary); font-size: .8rem; line-height: 1.55; }
+.education-disclaimer strong { color: var(--gold); font-size: .72rem; letter-spacing: .08em; text-transform: uppercase; }
+.education-section { padding: 34px 0; border-bottom: 1px solid var(--border-ui); }
+.education-section-heading { margin-bottom: 22px; }
+.section-kicker { color: var(--teal); font-size: .7rem; font-weight: 700; letter-spacing: .1em; text-transform: uppercase; }
+.education-section h2 { margin-top: 7px; font-size: 1.8rem; font-weight: 400; }
+.method-step-grid { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 1px; background: var(--border-ui); border: 1px solid var(--border-ui); }
+.method-step { min-height: 230px; padding: 20px; background: var(--bg-card); }
+.method-step-number, .algorithm-index { color: var(--teal); font: 600 .78rem Inter, sans-serif; letter-spacing: .08em; }
+.method-step h3 { margin: 30px 0 10px; font: 600 1.05rem Inter, sans-serif; letter-spacing: 0; }
+.method-step p, .algorithm-row p, .limits-grid p { color: var(--text-secondary); font-size: .82rem; line-height: 1.65; }
+.algorithm-list { border-top: 1px solid var(--border-ui); }
+.algorithm-row { display: grid; grid-template-columns: 56px 1fr; gap: 16px; padding: 18px 0; border-bottom: 1px solid var(--border-muted); }
+.algorithm-row h3 { margin-bottom: 5px; font: 600 1rem Inter, sans-serif; letter-spacing: 0; }
+.method-source { margin-top: 18px; color: var(--text-muted); font-size: .75rem; line-height: 1.6; }
+.calculation-list { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1px; background: var(--border-ui); border: 1px solid var(--border-ui); }
+.calculation-list > div { min-height: 145px; padding: 18px; background: var(--bg-card); }
+.calculation-list strong { display: block; margin-bottom: 8px; font: 600 .9rem Inter, sans-serif; }
+.calculation-list code { display: block; margin-bottom: 10px; color: var(--teal); font: .76rem "Fira Code", Consolas, monospace; white-space: normal; }
+.calculation-list p { color: var(--text-secondary); font-size: .78rem; line-height: 1.55; }
+.limits-section { border-bottom: 0; }
+.limits-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 24px; }
+.limits-grid > div { padding-top: 14px; border-top: 2px solid var(--border-ui); }
+.limits-grid strong { display: block; margin-bottom: 7px; font-size: .88rem; }
+.empty-methods { color: var(--text-secondary); }
+@media (max-width: 900px) { .method-step-grid { grid-template-columns: repeat(2, 1fr); } .method-step { min-height: auto; } }
+@media (max-width: 640px) { .education-intro { grid-template-columns: 1fr; gap: 20px; } .method-step-grid, .calculation-list, .limits-grid { grid-template-columns: 1fr; } }

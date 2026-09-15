@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { api } from '../utils/api';
+import { api, toLocalDate } from '../utils/api';
 import ModeToggle from '../components/ModeToggle';
 import TerminalWindow from '../components/TerminalWindow';
 import BarChart from '../components/charts/BarChart';
@@ -7,8 +7,8 @@ import BarChart from '../components/charts/BarChart';
 const CORE_ASSETS = ['NIFTY', 'Gold', 'Silver', 'BrentOil'];
 
 export default function ShockSimulator({ mode, setMode }) {
-  const today = new Date().toISOString().slice(0, 10);
-  const oneYearAgo = new Date(Date.now() - 365 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
+  const today = toLocalDate();
+  const oneYearAgo = toLocalDate(new Date(Date.now() - 365 * 24 * 60 * 60 * 1000));
 
   const [asset,       setAsset]       = useState('BrentOil');
   const [shockPct,    setShockPct]    = useState('');
@@ -47,15 +47,15 @@ export default function ShockSimulator({ mode, setMode }) {
       <TerminalWindow title="~/shock-propagation-simulator">
         <div className="telemetry-header-row" style={{ marginBottom: 20 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
-            <span className="badge badge-gold" style={{ fontWeight: 800 }}>SIM_OPS_NODE</span>
-            <span style={{ color: 'var(--terminal-green)', fontSize: '0.85rem', fontWeight: 'bold' }}>SHOCK_PROPAGATION_SIMULATOR</span>
+            <span className="badge badge-gold" style={{ fontWeight: 800 }}>Scenario lab</span>
+            <span style={{ color: 'var(--terminal-green)', fontSize: '0.85rem', fontWeight: 'bold' }}>Shock propagation</span>
             <ModeToggle mode={mode} setMode={setMode} />
           </div>
         </div>
 
         <div className="panel-card" style={{ padding: 24, marginBottom: 24 }}>
           <div style={{ color: 'var(--terminal-green)', fontSize: '0.85rem', fontWeight: 'bold', borderBottom: '1px solid var(--border-ui)', paddingBottom: 8, marginBottom: 16 }}>
-            :: CONFIGURE_SHOCK_SCENARIO
+            Scenario inputs
           </div>
           <div className="sim-form">
             <div className="form-group">
@@ -115,7 +115,7 @@ export default function ShockSimulator({ mode, setMode }) {
               disabled={loading}
               style={{ height: 'fit-content', alignSelf: 'flex-end' }}
             >
-              {loading ? '[ RUNNING... ]' : '[ SIMULATE ]'}
+              {loading ? 'Running...' : 'Run scenario'}
             </button>
           </div>
 
@@ -130,7 +130,7 @@ export default function ShockSimulator({ mode, setMode }) {
         {result && (
           <div className="fade-up" style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
             <div style={{ color: 'var(--terminal-green)', fontSize: '0.85rem', fontWeight: 'bold', borderBottom: '1px solid var(--border-ui)', paddingBottom: 8 }}>
-              :: SIMULATION_OUTPUT_METRICS
+              Scenario results
             </div>
 
             <div className="panel-card" style={{ padding: 20 }}>
@@ -194,7 +194,7 @@ export default function ShockSimulator({ mode, setMode }) {
 
             <div className="panel-card" style={{ padding: 20 }}>
               <div style={{ fontWeight: 'bold', marginBottom: 8, fontSize: '0.85rem' }}>
-                :: WHAT_THIS_SCENARIO_MEANS
+                How to read this scenario
               </div>
               <p style={{ color: 'var(--text-secondary)', fontSize: '0.82rem', lineHeight: 1.6 }}>
                 If <strong>{result.source_asset}</strong> drops or rises by

@@ -17,18 +17,10 @@ export default function AreaChart({ asset, dates = [], normalized = [] }) {
       label: `${asset} (Base=100)`,
       data: normalized,
       borderColor: color,
-      backgroundColor: (ctx) => {
-        const chart = ctx.chart;
-        const { ctx: canvasCtx, chartArea } = chart;
-        if (!chartArea) return `${color}10`;
-        const gradient = canvasCtx.createLinearGradient(0, chartArea.top, 0, chartArea.bottom);
-        gradient.addColorStop(0, `${color}55`);
-        gradient.addColorStop(1, `${color}05`);
-        return gradient;
-      },
+      backgroundColor: `${color}24`,
       fill: 'origin',
-      borderWidth: 2.5,
-      tension: 0.4,
+      borderWidth: 2,
+      tension: 0.2,
       pointRadius: 0,
       pointHoverRadius: 5,
     }],
@@ -41,7 +33,7 @@ export default function AreaChart({ asset, dates = [], normalized = [] }) {
     plugins: {
       legend: { display: false },
       tooltip: {
-        backgroundColor: 'rgba(13,18,36,0.95)',
+          backgroundColor: '#fffefa',
         borderColor: color,
         borderWidth: 1,
         titleColor: '#f0f4ff',
@@ -55,11 +47,11 @@ export default function AreaChart({ asset, dates = [], normalized = [] }) {
     scales: {
       x: {
         ticks: { color: '#525a6e', maxTicksLimit: 8, font: { size: 11 } },
-        grid: { color: 'rgba(255,255,255,0.04)' },
+        grid: { color: '#e8e4da' },
       },
       y: {
         ticks: { color: '#525a6e', font: { size: 11 } },
-        grid: { color: 'rgba(255,255,255,0.04)' },
+        grid: { color: '#e8e4da' },
       },
     },
   };

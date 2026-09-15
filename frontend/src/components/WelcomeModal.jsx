@@ -5,6 +5,7 @@ const OPTIONS = [
   { key: 'analysis', title: 'Analyze trends', description: 'Review correlation, shock propagation and model details.', path: '/analysis' },
   { key: 'simulator', title: 'Simulate an investment', description: 'Build a trade scenario and compare expected impact across markets.', path: '/simulator' },
   { key: 'trade', title: 'Demo trading', description: 'Run a live stock trade test and see profit or loss using current market prices.', path: '/trade' },
+  { key: 'education', title: 'Learn the method', description: 'Read how prices, shocks, propagation, and limitations are calculated.', path: '/how-it-works' },
 ];
 
 export default function WelcomeModal({ open, onChoose }) {

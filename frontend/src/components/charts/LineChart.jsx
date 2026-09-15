@@ -22,10 +22,9 @@ export default function LineChart({ asset, dates = [], prices = [], normalized =
       label: normalized ? `${asset} (Normalized, base=100)` : `${asset} Price`,
       data: values,
       borderColor: color,
-      backgroundColor: `${color}18`,
       borderWidth: 2,
-      fill: true,
-      tension: 0.35,
+      fill: false,
+      tension: 0.15,
       pointRadius: 0,
       pointHoverRadius: 5,
     }],
@@ -38,7 +37,7 @@ export default function LineChart({ asset, dates = [], prices = [], normalized =
     plugins: {
       legend: { display: false },
       tooltip: {
-        backgroundColor: 'rgba(13,18,36,0.95)',
+          backgroundColor: '#fffefa',
         borderColor: color,
         borderWidth: 1,
         titleColor: '#f0f4ff',
@@ -52,11 +51,11 @@ export default function LineChart({ asset, dates = [], prices = [], normalized =
     scales: {
       x: {
         ticks: { color: '#525a6e', maxTicksLimit: 8, maxRotation: 0, font: { size: 11 } },
-        grid: { color: 'rgba(255,255,255,0.04)' },
+        grid: { color: '#e8e4da' },
       },
       y: {
         ticks: { color: '#525a6e', font: { size: 11 } },
-        grid: { color: 'rgba(255,255,255,0.04)' },
+        grid: { color: '#e8e4da' },
       },
     },
   };

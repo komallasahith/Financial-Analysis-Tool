@@ -9,7 +9,9 @@ from flask_cors import CORS
 import pandas as pd
 import numpy as np
 import os
-import pickle
+import json
+import hashlib
+import logging
 from datetime import datetime
 import sys
 
@@ -23,6 +25,14 @@ from propagation_model import analyze_shock_propagation, summarize_propagation
 from simulator import build_relationship_map, simulate_shock
 
 app = Flask(__name__)
+logging.basicConfig(level=os.getenv('LOG_LEVEL', 'INFO'))
+logger = logging.getLogger('marketpulse.api')
+
+
+@app.errorhandler(Exception)
+def handle_unexpected_error(error):
+    logger.exception('Unhandled API error: %s', error)
+    return jsonify({'error': 'An internal server error occurred.'}), 500
 
 _origins = os.getenv('ALLOWED_ORIGINS', 'http://localhost:3000,http://localhost:3001,http://127.0.0.1:3000,http://127.0.0.1:3001')
 ALLOWED_ORIGINS = [o.strip() for o in _origins.split(',') if o.strip()]
@@ -56,6 +66,14 @@ TICKERS = {
     'Tesla':       'TSLA',
     'Nvidia':      'NVDA',
     'Meta':        'META',
+    'Alphabet':    'GOOGL',
+    'Broadcom':    'AVGO',
+    'AMD':         'AMD',
+    'Netflix':     'NFLX',
+    'JPMorgan':    'JPM',
+    'Berkshire':   'BRK-B',
+    'Reliance':    'RELIANCE.NS',
+    'HDFCBank':    'HDFCBANK.NS',
 }
 
 CATEGORIES = {
@@ -64,7 +82,7 @@ CATEGORIES = {
     'Energy':            ['BrentOil', 'WTICrude', 'NaturalGas'],
     'Crypto':            ['Bitcoin', 'Ethereum'],
     'Industrial Metals': ['Copper'],
-    'Large Cap Stocks':  ['Apple', 'Microsoft', 'Amazon', 'Tesla', 'Nvidia', 'Meta'],
+    'Large Cap Stocks':  ['Apple', 'Microsoft', 'Amazon', 'Tesla', 'Nvidia', 'Meta', 'Alphabet', 'Broadcom', 'AMD', 'Netflix', 'JPMorgan', 'Berkshire', 'Reliance', 'HDFCBank'],
 }
 
 CATEGORY_ICONS = {
@@ -84,6 +102,8 @@ ASSET_ICONS = {
     'Copper': 'Cu',
     'Apple': 'AAPL', 'Microsoft': 'MSFT', 'Amazon': 'AMZN',
     'Tesla': 'TSLA', 'Nvidia': 'NVDA', 'Meta': 'META',
+    'Alphabet': 'GOOGL', 'Broadcom': 'AVGO', 'AMD': 'AMD', 'Netflix': 'NFLX',
+    'JPMorgan': 'JPM', 'Berkshire': 'BRK', 'Reliance': 'REL', 'HDFCBank': 'HDF',
 }
 
 # Original 4 assets (used by existing backend modules)
@@ -92,30 +112,47 @@ CORE_ASSETS = ['NIFTY', 'Gold', 'Silver', 'BrentOil']
 # ─────────────────────────────────────────────────────────────────────────────
 # CACHE HELPERS
 # ─────────────────────────────────────────────────────────────────────────────
-CACHE_DIR = os.path.join(os.path.dirname(__file__), 'cache')
-CACHE_TTL_HOURS = 24
+CACHE_DIR = os.getenv('CACHE_DIR', os.path.join(os.path.dirname(__file__), 'cache'))
+CACHE_SCHEMA_VERSION = 1
+CACHE_TTL_SECONDS = int(os.getenv('CACHE_TTL_SECONDS', '86400'))
 os.makedirs(CACHE_DIR, exist_ok=True)
+try:
+    os.chmod(CACHE_DIR, 0o700)
+except OSError:
+    pass
 
 
 def _cache_path(key: str) -> str:
-    safe = key.replace('/', '_').replace('=', '_').replace('^', 'idx_').replace('-', '_')
-    return os.path.join(CACHE_DIR, f"{safe}.pkl")
+    digest = hashlib.sha256(f"{CACHE_SCHEMA_VERSION}:{key}".encode('utf-8')).hexdigest()
+    return os.path.join(CACHE_DIR, f"cache_{CACHE_SCHEMA_VERSION}_{digest}")
 
 
 def _load_cache(key: str):
-    path = _cache_path(key)
-    if not os.path.exists(path):
-        return None
-    age_hours = (datetime.now() - datetime.fromtimestamp(os.path.getmtime(path))).total_seconds() / 3600
-    if age_hours > CACHE_TTL_HOURS:
-        return None
-    with open(path, 'rb') as f:
-        return pickle.load(f)
+    base = _cache_path(key)
+    candidates = [(f"{base}.parquet", 'parquet'), (f"{base}.json", 'json')]
+    for path, kind in candidates:
+        if not os.path.exists(path):
+            continue
+        age = (datetime.now() - datetime.fromtimestamp(os.path.getmtime(path))).total_seconds()
+        if age > CACHE_TTL_SECONDS:
+            return None
+        try:
+            if kind == 'parquet':
+                return pd.read_parquet(path)
+            with open(path, 'r', encoding='utf-8') as cache_file:
+                return json.load(cache_file)
+        except (OSError, ValueError, ImportError, TypeError):
+            return None
+    return None
 
 
 def _save_cache(key: str, data):
-    with open(_cache_path(key), 'wb') as f:
-        pickle.dump(data, f)
+    base = _cache_path(key)
+    if isinstance(data, pd.DataFrame):
+        data.to_parquet(f"{base}.parquet", index=True)
+        return
+    with open(f"{base}.json", 'w', encoding='utf-8') as cache_file:
+        json.dump(data, cache_file)
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -187,7 +224,7 @@ def fetch_live_quote(ticker_symbol: str) -> dict:
             'previous_close': round(previous, 4),
             'last_updated': last_updated,
             'source': 'Yahoo Finance',
-            'verified': True,
+            'sources': [{'name': 'Yahoo Finance', 'price': round(current, 4), 'timestamp': last_updated}],
         }
     except Exception as e:
         print(f"[verify] {ticker_symbol}: {e}")
@@ -284,6 +321,38 @@ def get_categories():
     })
 
 
+@app.route('/api/health', methods=['GET'])
+def health():
+    return jsonify({'status': 'ok', 'timestamp': datetime.utcnow().isoformat() + 'Z'})
+
+
+@app.route('/api/ready', methods=['GET'])
+def ready():
+    writable = os.access(CACHE_DIR, os.W_OK)
+    status = 200 if writable else 503
+    return jsonify({'status': 'ready' if writable else 'not_ready', 'cache_writable': writable}), status
+
+
+@app.route('/api/data-quality', methods=['GET'])
+def data_quality():
+    period = request.args.get('period', '1y')
+    start = request.args.get('start')
+    end = request.args.get('end')
+    mode = request.args.get('mode', 'historical')
+    df = fetch_core_closes(period=period, mode=mode, start=start, end=end)
+    if df.empty:
+        return jsonify({'error': 'No core-asset data'}), 500
+    return jsonify({
+        'effective_start': str(df.index.min())[:10],
+        'effective_end': str(df.index.max())[:10],
+        'row_count': int(len(df)),
+        'assets': {
+            asset: {'missing_pct': round(float(df[asset].isna().mean() * 100), 2)}
+            for asset in df.columns
+        },
+    })
+
+
 @app.route('/api/algorithms', methods=['GET'])
 def get_algorithms():
     """Return a short summary of the models used in analysis."""
@@ -301,9 +370,13 @@ def get_algorithms():
                 'name': 'Portfolio signal',
                 'description': 'Ranks assets using volatility, total return, and the probability of positive trading days.',
             },
+            {
+                'name': 'ML status',
+                'description': 'No predictive ML model is currently served. Historical calculations remain explicitly educational until walk-forward validation is available.',
+            },
         ],
         'data_source': 'Yahoo Finance',
-        'notes': 'All pricing uses actual trading session data and adjusts for weekends and market holidays.',
+        'notes': 'All pricing uses actual trading session data and adjusts for weekends and market holidays. NSE and Nasdaq are reference sources only; quotes are not automatically cross-verified.',
     })
 
 
@@ -357,6 +430,7 @@ def get_summary():
             results.append({
                 'name': name,
                 'ticker': ticker,
+                'currency': 'INR' if ticker.endswith('.NS') else 'USD',
                 'icon': ASSET_ICONS.get(name, name[:3]),
                 'category': category,
                 'category_icon': CATEGORY_ICONS.get(category, category[:3].upper()),
@@ -399,6 +473,7 @@ def get_price_history():
     return jsonify({
         'asset': asset,
         'ticker': ticker,
+        'currency': 'INR' if ticker.endswith('.NS') else 'USD',
         'mode': mode,
         'period': period,
         'dates':      [str(d)[:10]                       for d in close.index],
@@ -621,8 +696,11 @@ def get_shocks():
     if threshold <= 0 or threshold > 1:
         return jsonify({'error': 'threshold must be between 0 and 1'}), 400
     mode      = request.args.get('mode', 'historical')
+    detection_mode = request.args.get('detection_mode', 'fixed_pct')
+    if detection_mode not in ('fixed_pct', 'z_score'):
+        return jsonify({'error': 'detection_mode must be fixed_pct or z_score'}), 400
 
-    cache_key = f"shocks_{period}_{threshold}_{start or 'none'}_{end or 'none'}"
+    cache_key = f"shocks_{period}_{threshold}_{detection_mode}_{start or 'none'}_{end or 'none'}"
     if mode == 'historical':
         cached = _load_cache(cache_key)
         if cached:
@@ -633,7 +711,7 @@ def get_shocks():
         return jsonify({'error': 'No core-asset data'}), 500
 
     processed = process_price_data(df)
-    shocks = detect_shocks(processed, threshold=threshold)
+    shocks = detect_shocks(processed, threshold=threshold, mode=detection_mode)
 
     # Convert dates to strings for JSON
     if not shocks.empty:
@@ -642,6 +720,7 @@ def get_shocks():
     result = {
         'mode': mode,
         'threshold': threshold,
+        'detection_mode': detection_mode,
         'total_shocks': len(shocks),
         'shocks': shocks.to_dict(orient='records') if not shocks.empty else [],
     }
@@ -665,8 +744,11 @@ def get_propagation():
     if threshold <= 0 or threshold > 1:
         return jsonify({'error': 'threshold must be between 0 and 1'}), 400
     mode      = request.args.get('mode', 'historical')
+    detection_mode = request.args.get('detection_mode', 'fixed_pct')
+    if detection_mode not in ('fixed_pct', 'z_score'):
+        return jsonify({'error': 'detection_mode must be fixed_pct or z_score'}), 400
 
-    cache_key = f"propagation_{period}_{threshold}_{start or 'none'}_{end or 'none'}"
+    cache_key = f"propagation_{period}_{threshold}_{detection_mode}_{start or 'none'}_{end or 'none'}"
     if mode == 'historical':
         cached = _load_cache(cache_key)
         if cached:
@@ -674,7 +756,7 @@ def get_propagation():
 
     df = fetch_core_closes(period=period, mode=mode, start=start, end=end)
     processed = process_price_data(df)
-    shocks = detect_shocks(processed, threshold=threshold)
+    shocks = detect_shocks(processed, threshold=threshold, mode=detection_mode)
     propagation = analyze_shock_propagation(processed, shocks)
     summary = summarize_propagation(propagation)
 
@@ -713,18 +795,28 @@ def simulate():
     start     = body.get('start')
     end       = body.get('end')
     mode      = body.get('mode', 'historical')
+    try:
+        threshold = float(body.get('threshold', 0.06))
+    except (TypeError, ValueError):
+        return jsonify({'error': 'threshold must be a number'}), 400
+    if threshold <= 0 or threshold > 1:
+        return jsonify({'error': 'threshold must be between 0 and 1'}), 400
+    detection_mode = body.get('detection_mode', 'fixed_pct')
+    if detection_mode not in ('fixed_pct', 'z_score'):
+        return jsonify({'error': 'detection_mode must be fixed_pct or z_score'}), 400
 
     if asset not in CORE_ASSETS:
         return jsonify({'error': f'Simulation only supports: {CORE_ASSETS}'}), 400
 
     df = fetch_core_closes(period=period, mode=mode, start=start, end=end)
     processed = process_price_data(df)
-    shocks = detect_shocks(processed, threshold=0.06)
+    shocks = detect_shocks(processed, threshold=threshold, mode=detection_mode)
     propagation = analyze_shock_propagation(processed, shocks)
     summary = summarize_propagation(propagation)
     rel_map = build_relationship_map(summary)
 
-    raw = simulate_shock(rel_map, asset, shock_pct / 100)
+    shock_baseline = shocks['Return'].abs().median() if not shocks.empty else threshold
+    raw = simulate_shock(rel_map, asset, shock_pct / 100, baseline=float(shock_baseline))
     impacts = [
         {
             'target': k,
@@ -737,6 +829,8 @@ def simulate():
     return jsonify({
         'source_asset': asset,
         'shock_pct': shock_pct,
+        'threshold': threshold,
+        'detection_mode': detection_mode,
         'mode': mode,
         'impacts': impacts,
     })

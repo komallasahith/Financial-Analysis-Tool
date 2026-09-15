@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { api, PERIODS, exportToCSV } from '../utils/api';
+import { api, PERIODS, exportToCSV, toLocalDate } from '../utils/api';
 import ModeToggle from '../components/ModeToggle';
 import TerminalWindow from '../components/TerminalWindow';
 
@@ -23,12 +23,20 @@ const TICKER_MAP = {
   Tesla:      '[TSLA]',
   Nvidia:     '[NVDA]',
   Meta:       '[META]',
+  Alphabet:   '[GOOGL]',
+  Broadcom:   '[AVGO]',
+  AMD:        '[AMD]',
+  Netflix:    '[NFLX]',
+  JPMorgan:   '[JPM]',
+  Berkshire:  '[BRK-B]',
+  Reliance:   '[RELIANCE.NS]',
+  HDFCBank:   '[HDFCBANK.NS]',
 };
 
 export default function Dashboard({ mode, setMode }) {
   const navigate = useNavigate();
-  const today = new Date().toISOString().slice(0, 10);
-  const oneYearAgo = new Date(Date.now() - 365 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
+  const today = toLocalDate();
+  const oneYearAgo = toLocalDate(new Date(Date.now() - 365 * 24 * 60 * 60 * 1000));
 
   const getPeriodStart = (periodKey) => {
     const date = new Date();
@@ -41,7 +49,7 @@ export default function Dashboard({ mode, setMode }) {
     if (periodKey === '2y') date.setFullYear(date.getFullYear() - 2);
     if (periodKey === '5y') date.setFullYear(date.getFullYear() - 5);
     if (periodKey === '10y') date.setFullYear(date.getFullYear() - 10);
-    return date.toISOString().slice(0, 10);
+    return toLocalDate(date);
   };
 
   const [period, setPeriod] = useState('1y');
@@ -84,7 +92,7 @@ export default function Dashboard({ mode, setMode }) {
       a.week_change_pct.toFixed(2),
       a.volatility_pct.toFixed(2),
     ]);
-    exportToCSV(`marketpulse-dashboard-${new Date().toISOString().slice(0, 10)}.csv`, headers, rows);
+    exportToCSV(`marketpulse-dashboard-${toLocalDate()}.csv`, headers, rows);
   };
 
   const getSystemLogic = (change) => {
@@ -98,8 +106,8 @@ export default function Dashboard({ mode, setMode }) {
       <TerminalWindow title="~/dashboard">
         <div className="telemetry-header-row">
           <div style={{ display: 'flex', alignItems: 'center', gap: '16px', flexWrap: 'wrap' }}>
-            <span className="badge badge-green" style={{ fontWeight: 800 }}>MARKET_OPS_NODE</span>
-            <span style={{ color: 'var(--terminal-green)', fontSize: '0.85rem', fontWeight: 'bold' }}>LIVE TELEMETRY GRID</span>
+            <span className="badge badge-green" style={{ fontWeight: 800 }}>Market overview</span>
+            <span style={{ color: 'var(--terminal-green)', fontSize: '0.85rem', fontWeight: 'bold' }}>Daily market moves</span>
             <ModeToggle mode={mode} setMode={setMode} />
           </div>
 
@@ -118,21 +126,21 @@ export default function Dashboard({ mode, setMode }) {
             </div>
 
             <button className="btn btn-primary" onClick={handleExportCSV} style={{ padding: '6px 12px', fontSize: '0.75rem' }}>
-              EXPORT_DATA
+              Export data
             </button>
           </div>
         </div>
 
         {error && (
           <div className="error-box" style={{ margin: '16px' }}>
-            SYSTEM ERROR: {error}
+            Unable to load market data: {error}
           </div>
         )}
 
         {loading ? (
           <div style={{ padding: 40, textAlign: 'center', color: 'var(--text-secondary)' }}>
             <span className="spinner-ring" style={{ display: 'inline-block', marginBottom: 12 }} />
-            <div>FETCHING TELEMETRY STREAMS...</div>
+            <div>Loading market data...</div>
           </div>
         ) : (
           <div style={{ overflowX: 'auto' }}>
@@ -142,7 +150,7 @@ export default function Dashboard({ mode, setMode }) {
                   <th>Ticker</th>
                   <th>Asset Identity</th>
                   <th>Class</th>
-                  <th>Price (USD)</th>
+                  <th>Latest quote</th>
                   <th>Net Delta</th>
                   <th>Ann. Volatility</th>
                   <th>System Logic</th>
@@ -152,7 +160,7 @@ export default function Dashboard({ mode, setMode }) {
               <tbody>
                 {(data?.assets || []).map(asset => {
                   const ticker = TICKER_MAP[asset.name] || `[${asset.name}]`;
-                  const priceStr = asset.price ? `$${asset.price.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : 'N/A';
+                  const priceStr = asset.price ? `${asset.currency === 'INR' ? '₹' : '$'}${asset.price.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : 'N/A';
                   const changeSign = asset.change_pct >= 0 ? '+' : '';
                   const changeColor = asset.change_pct >= 0 ? 'var(--green)' : 'var(--red)';
                   
@@ -183,7 +191,7 @@ export default function Dashboard({ mode, setMode }) {
                           className="btn btn-ghost" 
                           onClick={() => navigate(`/asset/${asset.name}`)}
                         >
-                          ANALYZE_NODE
+                          Analyze
                         </button>
                       </td>
                     </tr>
@@ -195,7 +203,7 @@ export default function Dashboard({ mode, setMode }) {
         )}
 
         {data?.assets?.length > 0 && (
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 16, marginTop: 24, padding: 16, background: '#090d14', border: '1px solid var(--border-ui)' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 16, marginTop: 24, padding: 16, background: 'var(--bg-card)', border: '1px solid var(--border-ui)' }}>
             <div>
               <div style={{ fontSize: '0.72rem', color: 'var(--text-secondary)' }}>TOTAL_SYSTEM_NODES</div>
               <div style={{ fontSize: '1.5rem', fontWeight: 'bold', color: 'var(--teal)' }}>{data.assets.length}</div>

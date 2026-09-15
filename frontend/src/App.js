@@ -9,6 +9,7 @@ import AssetDetail from './pages/AssetDetail';
 import Analysis from './pages/Analysis';
 import ShockSimulator from './pages/ShockSimulator';
 import TradeDemo from './pages/TradeDemo';
+import HowItWorks from './pages/HowItWorks';
 
 function AppRouter() {
   const navigate = useNavigate();
@@ -39,6 +40,7 @@ function AppRouter() {
         <Route path="/analysis" element={<Analysis mode={mode} setMode={setMode} />} />
         <Route path="/simulator" element={<ShockSimulator mode={mode} setMode={setMode} />} />
         <Route path="/trade" element={<TradeDemo mode={mode} setMode={setMode} />} />
+        <Route path="/how-it-works" element={<HowItWorks />} />
       </Routes>
     </>
   );

@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { api, PERIODS, ASSET_COLORS, formatPrice, formatPct } from '../utils/api';
+import { api, PERIODS, ASSET_COLORS, formatPrice, formatPct, toLocalDate } from '../utils/api';
 import ModeToggle from '../components/ModeToggle';
 import InvestmentSuggestion from '../components/InvestmentSuggestion';
 import AssetLogo from '../components/AssetLogo';
@@ -25,8 +25,8 @@ export default function AssetDetail({ mode, setMode }) {
   const { name } = useParams();
   const navigate = useNavigate();
 
-  const today = new Date().toISOString().slice(0, 10);
-  const oneYearAgo = new Date(Date.now() - 365 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
+  const today = toLocalDate();
+  const oneYearAgo = toLocalDate(new Date(Date.now() - 365 * 24 * 60 * 60 * 1000));
 
   const getPeriodStart = (periodKey) => {
     const date = new Date();
@@ -39,7 +39,7 @@ export default function AssetDetail({ mode, setMode }) {
     if (periodKey === '2y') date.setFullYear(date.getFullYear() - 2);
     if (periodKey === '5y') date.setFullYear(date.getFullYear() - 5);
     if (periodKey === '10y') date.setFullYear(date.getFullYear() - 10);
-    return date.toISOString().slice(0, 10);
+    return toLocalDate(date);
   };
 
   const [period, setPeriod] = useState('1y');
@@ -131,7 +131,7 @@ export default function AssetDetail({ mode, setMode }) {
               {priceData && (
                 <>
                   <span className="detail-price-big" style={{ color }}>
-                    {formatPrice(priceData.current_price)}
+                    {priceData.currency === 'INR' ? '₹' : '$'}{formatPrice(priceData.current_price)}
                   </span>
                   <span
                     className="badge"
@@ -198,21 +198,21 @@ export default function AssetDetail({ mode, setMode }) {
 
         {error && (
           <div className="error-box" style={{ marginTop: 16, marginBottom: 24 }}>
-            SYSTEM ERROR: {error}
+            Unable to load asset data: {error}
           </div>
         )}
 
         {/* Stats row */}
         {priceData && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 20, marginTop: 24 }}>
-            <div style={{ color: '#00ff00', fontSize: '0.85rem', fontWeight: 'bold', borderBottom: '1px solid var(--border-ui)', paddingBottom: 8 }}>
-              :: ASSET_TELEMETRY_LOGS
+            <div className="content-section-title">
+              Asset statistics
             </div>
             
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px,1fr))', gap: 12 }}>
             {[
-              { label: 'Start Price',    value: `$${formatPrice(priceData.start_price)}` },
-              { label: 'Current Price',  value: `$${formatPrice(priceData.current_price)}`, highlight: true },
+              { label: 'Start Price',    value: `${priceData.currency === 'INR' ? '₹' : '$'}${formatPrice(priceData.start_price)}` },
+              { label: 'Current Price',  value: `${priceData.currency === 'INR' ? '₹' : '$'}${formatPrice(priceData.current_price)}`, highlight: true },
               { label: 'Total Return',   value: formatPct(priceData.total_return_pct) },
               { label: 'Win Days %',     value: probData ? `${probData.probability_positive_pct}%` : '—' },
               { label: 'Annualized Vol', value: probData ? `${probData.annualized_volatility_pct}%` : '—' },
@@ -241,7 +241,7 @@ export default function AssetDetail({ mode, setMode }) {
         {probData && (
           <div className="panel-card" style={{ padding: 20, marginTop: 20 }}>
             <h3 style={{ fontSize: '0.9rem', fontWeight: 700, marginBottom: 12 }}>
-              📅 Win vs Loss Days (Last {probData.window_days} Days)
+              Win vs loss days (last {probData.window_days} days)
             </h3>
             <div style={{ display: 'flex', gap: 10, alignItems: 'center', marginBottom: 8 }}>
               <div style={{ flex: probData.win_days, height: 10, borderRadius: '4px 0 0 4px', background: 'var(--green)' }} />

@@ -21,6 +21,14 @@ DEFAULT_TICKERS = {
     'Tesla':       'TSLA',
     'Nvidia':      'NVDA',
     'Meta':        'META',
+    'Alphabet':    'GOOGL',
+    'Broadcom':    'AVGO',
+    'AMD':         'AMD',
+    'Netflix':     'NFLX',
+    'JPMorgan':    'JPM',
+    'Berkshire':   'BRK-B',
+    'Reliance':    'RELIANCE.NS',
+    'HDFCBank':    'HDFCBANK.NS',
 }
 
 
@@ -57,7 +65,9 @@ def download_historical_data(start_date=None, end_date=None, period="1y", ticker
             return pd.DataFrame()
 
         df = _normalize_dataframe(df, tickers)
-        df = df.dropna()
+        # Equities and crypto trade on different calendars. Preserve dates when
+        # at least one asset has data, while limiting stale forward fills.
+        df = df.ffill(limit=3).dropna(how='all')
 
         print(f"Data downloaded successfully: {df.shape[0]} rows x {df.shape[1]} assets")
         return df

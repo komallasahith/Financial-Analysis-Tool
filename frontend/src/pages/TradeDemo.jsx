@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import ModeToggle from '../components/ModeToggle';
 import TerminalWindow from '../components/TerminalWindow';
-import { api, formatPrice, formatPct } from '../utils/api';
+import { api, formatPrice, formatPct, toLocalDate } from '../utils/api';
 
 const STOCK_ASSETS = [
   { name: 'Apple',    ticker: 'AAPL', desc: 'Consumer tech leader' },
@@ -13,8 +13,8 @@ const STOCK_ASSETS = [
 ];
 
 export default function TradeDemo({ mode, setMode }) {
-  const today = new Date().toISOString().slice(0, 10);
-  const defaultBuyDate = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
+  const today = toLocalDate();
+  const defaultBuyDate = toLocalDate(new Date(Date.now() - 30 * 24 * 60 * 60 * 1000));
 
   const [asset, setAsset] = useState('Apple');
   const [investment, setInvestment] = useState(1000);
@@ -85,8 +85,8 @@ export default function TradeDemo({ mode, setMode }) {
       <TerminalWindow title="~/demo-trading">
         <div className="telemetry-header-row" style={{ marginBottom: 20 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
-            <span className="badge badge-green" style={{ fontWeight: 800 }}>TRADE_OPS_NODE</span>
-            <span style={{ color: 'var(--terminal-green)', fontSize: '0.85rem', fontWeight: 'bold' }}>QUANTITATIVE_PROJECTION_ENGINE</span>
+            <span className="badge badge-green" style={{ fontWeight: 800 }}>Trade lab</span>
+            <span style={{ color: 'var(--terminal-green)', fontSize: '0.85rem', fontWeight: 'bold' }}>Historical position check</span>
             <ModeToggle mode={mode} setMode={setMode} />
           </div>
         </div>
@@ -95,11 +95,11 @@ export default function TradeDemo({ mode, setMode }) {
           {/* Order entry router right-side column */}
           <div className="trade-card" style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
             <div style={{ color: 'var(--terminal-green)', fontSize: '0.85rem', fontWeight: 'bold', borderBottom: '1px solid var(--border-ui)', paddingBottom: 8 }}>
-              :: ORDER_ENTRY_ROUTER
+              Position setup
             </div>
 
             <div className="form-group">
-              <label className="form-label">Asset_Identifier</label>
+              <label className="form-label">Asset</label>
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 8 }}>
                 {STOCK_ASSETS.map(stock => (
                   <button
@@ -116,7 +116,7 @@ export default function TradeDemo({ mode, setMode }) {
             </div>
 
             <div className="form-group">
-              <label className="form-label">Entry_Basis_Data (Date)</label>
+              <label className="form-label">Entry date</label>
               <input
                 className="form-input"
                 type="date"
@@ -127,7 +127,7 @@ export default function TradeDemo({ mode, setMode }) {
             </div>
 
             <div className="form-group">
-              <label className="form-label">Capital_Allocation (USD)</label>
+              <label className="form-label">Capital allocation (USD)</label>
               <input
                 className="form-input"
                 type="number"
@@ -144,14 +144,14 @@ export default function TradeDemo({ mode, setMode }) {
               disabled={loading}
               style={{ width: '100%', padding: '12px' }}
             >
-              {loading ? '[ EXECUTING... ]' : '[ SUBMIT_ORDER ]'}
+              {loading ? 'Running...' : 'Run position check'}
             </button>
 
             {error && <div className="error-box" style={{ fontSize: '0.8rem' }}>{error}</div>}
 
             {result && (
-              <div style={{ marginTop: 12, padding: 12, border: '1px solid var(--border-ui)', background: '#090d14' }}>
-                <div style={{ fontSize: '0.72rem', color: 'var(--text-secondary)' }}>NET_POSITION_YIELD</div>
+              <div style={{ marginTop: 12, padding: 12, border: '1px solid var(--border-ui)', background: 'var(--bg-card)' }}>
+                <div style={{ fontSize: '0.72rem', color: 'var(--text-secondary)' }}>Net position result</div>
                 <div style={{ fontSize: '1.65rem', fontWeight: 'bold', color: gain ? 'var(--green)' : 'var(--red)', marginTop: 4 }}>
                   {gain ? '+' : ''}${formatPrice(result.profitLoss)}
                 </div>
@@ -165,19 +165,19 @@ export default function TradeDemo({ mode, setMode }) {
           {/* Results column on the left */}
           <div className="trade-card" style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
             <div style={{ color: 'var(--terminal-green)', fontSize: '0.85rem', fontWeight: 'bold', borderBottom: '1px solid var(--border-ui)', paddingBottom: 8 }}>
-              :: POSITION_EXECUTION_RECEIPT
+              Position report
             </div>
 
             {!result && !loading && (
               <div style={{ padding: 40, textAlign: 'center', color: 'var(--text-secondary)', fontSize: '0.85rem' }}>
-                AWAITING ORDER SUBMISSION FOR {assetTicker}
+                Choose an asset and run the position check for {assetTicker}.
               </div>
             )}
 
             {loading && (
               <div style={{ padding: 40, textAlign: 'center', color: 'var(--text-secondary)' }}>
                 <span className="spinner-ring" style={{ display: 'inline-block', marginBottom: 12 }} />
-                <div>COMMUNICATING WITH TELEMETRY NODE...</div>
+                <div>Loading historical prices...</div>
               </div>
             )}
 
@@ -223,8 +223,8 @@ export default function TradeDemo({ mode, setMode }) {
                 </table>
 
                 {quote && (
-                  <div style={{ marginTop: 24, padding: 12, background: '#090d14', border: '1px solid var(--border-ui)', fontSize: '0.78rem' }}>
-                    <div style={{ color: 'var(--text-secondary)', fontWeight: 'bold', marginBottom: 8 }}>:: REAL_TIME_QUOTE_VERIFICATION</div>
+                  <div style={{ marginTop: 24, padding: 12, background: 'var(--bg-card)', border: '1px solid var(--border-ui)', fontSize: '0.78rem' }}>
+                    <div style={{ color: 'var(--text-secondary)', fontWeight: 'bold', marginBottom: 8 }}>Latest quote</div>
                     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
                       <div>
                         <span style={{ color: 'var(--text-muted)' }}>LIVE_PRICE:</span>{' '}
