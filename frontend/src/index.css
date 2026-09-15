@@ -574,7 +574,7 @@ h1, h2, h3, h4, .section-title {
 
 @media (max-width: 760px) {
   .navbar { padding: 0 16px; }
-  .navbar-links { gap: 0; overflow-x: auto; white-space: nowrap; -webkit-overflow-scrolling: touch; }
+  .navbar-links { gap: 0;  }
   .navbar-links a { padding-left: 8px; padding-right: 8px; font-size: .72rem; }
   .navbar-meta { display: none; }
   .page-container { padding: 86px 16px 36px; }
@@ -622,7 +622,7 @@ h1, h2, h3, h4, .section-title {
 @media (max-width: 1024px) {
   .page-container { padding: 86px 24px 32px; }
   .dashboard-grid { grid-template-columns: 1fr; }
-  .telemetry-table-wrapper { overflow-x: auto; max-width: 100vw; -webkit-overflow-scrolling: touch; }
+  .telemetry-table-wrapper {  }
   .assets-grid { grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); }
 }
 
@@ -712,9 +712,7 @@ h1, h2, h3, h4, .section-title {
 @media (max-width: 768px) {
   .mode-toggle {
     display: flex;
-    flex-wrap: nowrap;
-    overflow-x: auto;
-    -webkit-overflow-scrolling: touch;
+    flex-direction: column;
     width: 100%;
     margin-bottom: 8px;
   }
@@ -754,5 +752,76 @@ h1, h2, h3, h4, .section-title {
   
   .trade-lab-details {
     margin-top: 24px;
+  }
+}
+
+/* Hamburger Menu */
+.hamburger {
+  display: none;
+  flex-direction: column;
+  gap: 5px;
+  cursor: pointer;
+  z-index: 1000;
+  padding: 8px;
+}
+.hamburger .bar {
+  width: 25px;
+  height: 3px;
+  background-color: var(--text-primary);
+  transition: 0.3s;
+  border-radius: 2px;
+}
+.hamburger .bar.open:nth-child(1) {
+  transform: translateY(8px) rotate(45deg);
+}
+.hamburger .bar.open:nth-child(2) {
+  opacity: 0;
+}
+.hamburger .bar.open:nth-child(3) {
+  transform: translateY(-8px) rotate(-45deg);
+}
+
+.desktop-only { display: block; }
+
+@media (max-width: 768px) {
+  .hamburger {
+    display: flex;
+  }
+  .desktop-only {
+    display: none !important;
+  }
+  .navbar-links {
+    display: none !important;
+    position: absolute;
+    top: 60px;
+    left: 0;
+    right: 0;
+    background: var(--bg-surface);
+    flex-direction: column;
+    padding: 20px;
+    border-bottom: 1px solid var(--border-ui);
+    box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+    z-index: 999;
+  }
+  .navbar-links.mobile-menu-open {
+    display: flex !important;
+  }
+  .navbar-links li {
+    margin-bottom: 16px;
+  }
+  
+  /* Fix Dashboard Tabs Horizontal Scroll */
+  .chart-tabs {
+    flex-wrap: wrap !important;
+  }
+}
+
+.trade-lab-container {
+  display: grid;
+  grid-template-columns: 2fr 1fr;
+}
+@media (max-width: 900px) {
+  .trade-lab-container {
+    grid-template-columns: 1fr;
   }
 }

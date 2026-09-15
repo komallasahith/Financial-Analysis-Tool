@@ -650,7 +650,7 @@ def get_asset_detail():
         'window_days': window,
         'annualized_vol_pct': round(vol * 100, 2),
         'trend_30d_pct': round(trend30 * 100, 2),
-        'suggestion_title': suggestion['risk'],
+        'suggestion_title': suggestion['risk_level'],
         'suggestion_color': suggestion['risk_color'],
         'suggestion_text': suggestion['action'],
         'historical_trend': [
