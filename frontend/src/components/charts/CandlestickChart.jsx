@@ -13,13 +13,12 @@ export default function CandlestickChart({ asset, candles = [] }) {
       toolbar: { show: false },
       animations: { enabled: true, speed: 400 },
     },
-    theme: { mode: 'dark' },
     title: { text: '' },
     xaxis: {
       type: 'datetime',
       labels: { style: { colors: '#525a6e', fontSize: '11px' } },
-      axisBorder: { color: 'rgba(255,255,255,0.07)' },
-      axisTicks: { color: 'rgba(255,255,255,0.07)' },
+      axisBorder: { color: 'rgba(0,0,0,0.1)' },
+      axisTicks: { color: 'rgba(0,0,0,0.1)' },
     },
     yaxis: {
       tooltip: { enabled: true },
@@ -29,7 +28,7 @@ export default function CandlestickChart({ asset, candles = [] }) {
       },
     },
     grid: {
-      borderColor: 'rgba(255,255,255,0.05)',
+      borderColor: 'rgba(0,0,0,0.05)',
       strokeDashArray: 4,
     },
     plotOptions: {
@@ -42,7 +41,7 @@ export default function CandlestickChart({ asset, candles = [] }) {
       },
     },
     tooltip: {
-      theme: 'dark',
+      theme: 'light',
       style: { fontSize: '12px' },
     },
   };

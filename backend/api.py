@@ -629,15 +629,43 @@ def get_asset_detail():
     else:
         radar = {'assets': []}
         
+    
     # 6. Probability
-    prob_val = probability_positive(returns, window=60)
+    window = 60
+    recent = returns.tail(window)
+    win_days  = int((recent > 0).sum())
+    loss_days = int((recent < 0).sum())
+    prob     = probability_positive(returns, window)
+    
+    vol      = safe_float(returns.rolling(30).std().iloc[-1] * (252**0.5)) if len(returns) >= 30 else 0.2
+    trend30  = safe_float(returns.tail(30).sum()) if len(returns) >= 30 else 0
+    suggestion = market_context(vol, trend30, prob)
+    
+    roll_prob = returns.rolling(30).apply(lambda x: (x > 0).mean() * 100).dropna()
+    
+    prob_val = {
+        'probability_positive_pct': prob,
+        'win_days': win_days,
+        'loss_days': loss_days,
+        'window_days': window,
+        'annualized_vol_pct': round(vol * 100, 2),
+        'trend_30d_pct': round(trend30 * 100, 2),
+        'suggestion_title': suggestion['risk'],
+        'suggestion_color': suggestion['risk_color'],
+        'suggestion_text': suggestion['action'],
+        'historical_trend': [
+            {'date': str(d.date()), 'prob': round(safe_float(p), 1)} 
+            for d, p in zip(roll_prob.index[::5], roll_prob.values[::5])
+        ]
+    }
+
     
     return jsonify({
         'asset': asset,
         'period': period,
         'mode': mode,
         'price_history': price_history,
-        'ohlc': ohlc,
+        'ohlc': {'candles': ohlc},
         'monthly_returns': monthly_returns,
         'scatter': scatter,
         'radar': radar,

@@ -94,7 +94,7 @@ export default function AssetDetail({ mode, setMode }) {
       case 'bar':
         return <BarChart asset={name} months={barData?.months || []} returns={barData?.returns || []} />;
       case 'area':
-        return <AreaChart asset={name} dates={priceData?.dates || []} normalized={priceData?.normalized || []} />;
+        return <AreaChart asset={name} dates={priceData?.dates || []} prices={priceData?.prices || []} />;
       case 'candlestick':
         return <CandlestickChart asset={name} candles={ohlcData?.candles || []} />;
       case 'scatter':

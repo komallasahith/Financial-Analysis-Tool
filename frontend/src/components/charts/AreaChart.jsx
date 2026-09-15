@@ -8,19 +8,19 @@ import { ASSET_COLORS } from '../../utils/api';
 
 ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, Filler, Tooltip, Legend);
 
-export default function AreaChart({ asset, dates = [], normalized = [] }) {
+export default function AreaChart({ asset, dates = [], prices = [] }) {
   const color = ASSET_COLORS[asset] || '#00d4aa';
 
   const data = {
     labels: dates,
     datasets: [{
       label: `${asset} (Base=100)`,
-      data: normalized,
+      data: prices,
       borderColor: color,
       backgroundColor: `${color}24`,
       fill: 'origin',
       borderWidth: 2,
-      tension: 0.2,
+      tension: 0.4,
       pointRadius: 0,
       pointHoverRadius: 5,
     }],
