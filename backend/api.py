@@ -1,27 +1,38 @@
 """
 MarketPulse — Flask REST API
 Wraps existing backend modules and serves all data to the React frontend.
-Does NOT modify any existing backend files.
 """
+
+from functools import wraps
+import hashlib
+import json
+import logging
+import os
+import sys
+import traceback
+from datetime import datetime, timezone
 
 from flask import Flask, jsonify, request
 from flask_cors import CORS
 from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
-from werkzeug.exceptions import HTTPException
-import pandas as pd
 import numpy as np
-import os
-import json
-import hashlib
-import logging
-from datetime import datetime
-import sys
+import pandas as pd
+from werkzeug.exceptions import HTTPException
+import yfinance as yf
 
 # ── Add backend dir to path so imports work ──────────────────────────────────
 sys.path.insert(0, os.path.dirname(__file__))
 
-from data_loader import download_historical_data
+from yf_session import get_session
+from retry import fetch_with_retry
+from data_loader import (
+    download_historical_data,
+    load_from_cache,
+    save_to_cache,
+    load_with_stale_fallback,
+    _load_snapshot,
+)
 from features import process_price_data
 from shock_detector import detect_shocks
 from propagation_model import analyze_shock_propagation, summarize_propagation
@@ -38,6 +49,27 @@ limiter = Limiter(
 )
 
 
+def safe_endpoint(fn):
+    @wraps(fn)
+    def wrapper(*args, **kwargs):
+        try:
+            return fn(*args, **kwargs)
+        except ValueError as e:
+            return jsonify({
+                "error": "no_data",
+                "message": str(e),
+                "hint": "Yahoo Finance may be blocking the request. Try again in a moment.",
+            }), 503
+        except Exception as e:
+            app.logger.error(f"Unhandled error in {fn.__name__}: {e}\n{traceback.format_exc()}")
+            return jsonify({
+                "error": "internal_error",
+                "message": "Data temporarily unavailable. Please retry.",
+                "endpoint": fn.__name__,
+            }), 503
+    return wrapper
+
+
 @app.errorhandler(Exception)
 def handle_unexpected_error(error):
     if isinstance(error, HTTPException):
@@ -45,7 +77,11 @@ def handle_unexpected_error(error):
     logger.exception('Unhandled API error: %s', error)
     return jsonify({'error': 'An internal server error occurred.'}), 500
 
-_origins = os.getenv('ALLOWED_ORIGINS', 'http://localhost:3000,http://localhost:3001,http://127.0.0.1:3000,http://127.0.0.1:3001')
+
+_origins = os.getenv(
+    'ALLOWED_ORIGINS',
+    'http://localhost:3000,http://localhost:3001,http://127.0.0.1:3000,http://127.0.0.1:3001'
+)
 ALLOWED_ORIGINS = [o.strip() for o in _origins.split(',') if o.strip()]
 CORS(app, resources={r"/api/*": {"origins": ALLOWED_ORIGINS}})
 
@@ -93,7 +129,11 @@ CATEGORIES = {
     'Energy':            ['BrentOil', 'WTICrude', 'NaturalGas'],
     'Crypto':            ['Bitcoin', 'Ethereum'],
     'Industrial Metals': ['Copper'],
-    'Large Cap Stocks':  ['Apple', 'Microsoft', 'Amazon', 'Tesla', 'Nvidia', 'Meta', 'Alphabet', 'Broadcom', 'AMD', 'Netflix', 'JPMorgan', 'Berkshire', 'Reliance', 'HDFCBank'],
+    'Large Cap Stocks':  [
+        'Apple', 'Microsoft', 'Amazon', 'Tesla', 'Nvidia', 'Meta',
+        'Alphabet', 'Broadcom', 'AMD', 'Netflix', 'JPMorgan',
+        'Berkshire', 'Reliance', 'HDFCBank'
+    ],
 }
 
 CATEGORY_ICONS = {
@@ -138,22 +178,23 @@ def _cache_path(key: str) -> str:
     return os.path.join(CACHE_DIR, f"cache_{CACHE_SCHEMA_VERSION}_{digest}")
 
 
-def _load_cache(key: str):
+def _load_cache(key: str, max_age_seconds: int = CACHE_TTL_SECONDS):
     base = _cache_path(key)
     candidates = [(f"{base}.parquet", 'parquet'), (f"{base}.json", 'json')]
     for path, kind in candidates:
         if not os.path.exists(path):
             continue
-        age = (datetime.now() - datetime.fromtimestamp(os.path.getmtime(path))).total_seconds()
-        if age > CACHE_TTL_SECONDS:
-            return None
+        if max_age_seconds is not None:
+            age = (datetime.now() - datetime.fromtimestamp(os.path.getmtime(path))).total_seconds()
+            if age > max_age_seconds:
+                continue
         try:
             if kind == 'parquet':
                 return pd.read_parquet(path)
             with open(path, 'r', encoding='utf-8') as cache_file:
                 return json.load(cache_file)
         except (OSError, ValueError, ImportError, TypeError):
-            return None
+            continue
     return None
 
 
@@ -172,40 +213,84 @@ def _save_cache(key: str, data):
 # ─────────────────────────────────────────────────────────────────────────────
 # DATA FETCHING
 # ─────────────────────────────────────────────────────────────────────────────
-def fetch_ticker_df(ticker_symbol: str, period: str = '1y', mode: str = 'historical', start: str = None, end: str = None) -> pd.DataFrame:
+def fetch_ticker_df(
+    ticker_symbol: str,
+    period: str = '1y',
+    mode: str = 'historical',
+    start: str = None,
+    end: str = None
+) -> pd.DataFrame:
     """Fetch OHLCV for one ticker. mode='historical' serves from cache if fresh."""
-    import yfinance as yf
-
     cache_key = f"ohlcv_{ticker_symbol}_{period}_{start or 'none'}_{end or 'none'}"
     if mode == 'historical':
         cached = _load_cache(cache_key)
-        if cached is not None:
+        if cached is not None and not (hasattr(cached, 'empty') and cached.empty):
             return cached
 
-    if start or end:
-        df = yf.download(ticker_symbol, start=start, end=end, progress=False, auto_adjust=True)
-    else:
-        df = yf.download(ticker_symbol, period=period, progress=False, auto_adjust=True)
+    session = get_session()
 
-    if mode == 'historical' and not df.empty:
-        _save_cache(cache_key, df)
-    return df
+    def _do_fetch():
+        if start or end:
+            return fetch_with_retry(
+                yf.download,
+                ticker_symbol,
+                start=start,
+                end=end,
+                progress=False,
+                auto_adjust=True,
+                session=session,
+            )
+        else:
+            return fetch_with_retry(
+                yf.download,
+                ticker_symbol,
+                period=period,
+                progress=False,
+                auto_adjust=True,
+                session=session,
+            )
+
+    try:
+        df = _do_fetch()
+        if df is not None and not df.empty and mode == 'historical':
+            _save_cache(cache_key, df)
+        return df
+    except Exception as e:
+        logger.warning(f"Fetch failed for {ticker_symbol}: {e}")
+        if mode == 'historical':
+            stale = _load_cache(cache_key, max_age_seconds=None)
+            if stale is not None and not (hasattr(stale, 'empty') and stale.empty):
+                logger.info(f"Serving stale cache for {ticker_symbol}")
+                return stale
+        snapshot_df = _load_snapshot(ticker_symbol)
+        if snapshot_df is not None and not snapshot_df.empty:
+            logger.info(f"Serving snapshot data for {ticker_symbol}")
+            return snapshot_df
+        return pd.DataFrame()
 
 
-def fetch_core_closes(period: str = '1y', mode: str = 'historical', start: str = None, end: str = None) -> pd.DataFrame:
+def fetch_core_closes(
+    period: str = '1y',
+    mode: str = 'historical',
+    start: str = None,
+    end: str = None
+) -> pd.DataFrame:
     """Fetch close prices for the core assets with optional range support."""
     cache_key = f"core_closes_{period}_{start or 'none'}_{end or 'none'}"
     if mode == 'historical':
         cached = _load_cache(cache_key)
-        if cached is not None:
+        if cached is not None and not (hasattr(cached, 'empty') and cached.empty):
             return cached
+
     df = download_historical_data(start_date=start, end_date=end, period=period)
-    if mode == 'historical' and not df.empty:
+    if mode == 'historical' and df is not None and not df.empty:
         _save_cache(cache_key, df)
     return df
 
 
 def flatten_columns(df: pd.DataFrame) -> pd.DataFrame:
+    if df is None or df.empty:
+        return df
     if isinstance(df.columns, pd.MultiIndex):
         df = df.copy()
         df.columns = df.columns.get_level_values(0)
@@ -213,11 +298,19 @@ def flatten_columns(df: pd.DataFrame) -> pd.DataFrame:
 
 
 def fetch_live_quote(ticker_symbol: str) -> dict:
-    import yfinance as yf
     try:
-        df = yf.download(ticker_symbol, period='5d', interval='1d', progress=False, auto_adjust=True)
+        session = get_session()
+        df = fetch_with_retry(
+            yf.download,
+            ticker_symbol,
+            period='5d',
+            interval='1d',
+            progress=False,
+            auto_adjust=True,
+            session=session,
+        )
         df = flatten_columns(df)
-        if df.empty or 'Close' not in df.columns:
+        if df is None or df.empty or 'Close' not in df.columns:
             return {}
         close = df['Close'].dropna()
         if len(close) == 0:
@@ -239,7 +332,7 @@ def fetch_live_quote(ticker_symbol: str) -> dict:
             'sources': [{'name': 'Yahoo Finance', 'price': round(current, 4), 'timestamp': last_updated}],
         }
     except Exception as e:
-        print(f"[verify] {ticker_symbol}: {e}")
+        logger.warning(f"[verify] {ticker_symbol}: {e}")
         return {}
 
 
@@ -323,6 +416,7 @@ def market_context(vol: float, trend_30d: float, prob: float) -> dict:
 # ─────────────────────────────────────────────────────────────────────────────
 
 @app.route('/api/categories', methods=['GET'])
+@safe_endpoint
 def get_categories():
     """Return all categories, tickers, and icons."""
     return jsonify({
@@ -334,26 +428,52 @@ def get_categories():
 
 
 @app.route('/api/health', methods=['GET'])
+@safe_endpoint
 def health():
-    return jsonify({'status': 'ok', 'timestamp': datetime.utcnow().isoformat() + 'Z'})
+    return jsonify({'status': 'ok', 'timestamp': datetime.now(timezone.utc).isoformat()})
 
 
 @app.route('/api/ready', methods=['GET'])
+@safe_endpoint
 def ready():
     writable = os.access(CACHE_DIR, os.W_OK)
     status = 200 if writable else 503
     return jsonify({'status': 'ready' if writable else 'not_ready', 'cache_writable': writable}), status
 
 
+@app.route('/api/health/deep', methods=['GET'])
+@safe_endpoint
+def health_deep():
+    result = {"yahoo_reachable": False, "sample_tickers": {}}
+    try:
+        session = get_session()
+        df = fetch_with_retry(
+            yf.download,
+            "AAPL",
+            period="5d",
+            progress=False,
+            auto_adjust=True,
+            session=session,
+            max_attempts=2,
+            base_delay=1.0,
+        )
+        result["yahoo_reachable"] = not df.empty
+        result["sample_tickers"]["AAPL"] = "ok" if not df.empty else "empty"
+    except Exception as e:
+        result["sample_tickers"]["AAPL"] = f"error: {e}"
+    return jsonify(result)
+
+
 @app.route('/api/data-quality', methods=['GET'])
+@safe_endpoint
 def data_quality():
     period = request.args.get('period', '1y')
     start = request.args.get('start')
     end = request.args.get('end')
     mode = request.args.get('mode', 'historical')
     df = fetch_core_closes(period=period, mode=mode, start=start, end=end)
-    if df.empty:
-        return jsonify({'error': 'No core-asset data'}), 500
+    if df is None or df.empty:
+        raise ValueError("No price data available — Yahoo Finance returned nothing")
     return jsonify({
         'effective_start': str(df.index.min())[:10],
         'effective_end': str(df.index.max())[:10],
@@ -366,6 +486,7 @@ def data_quality():
 
 
 @app.route('/api/algorithms', methods=['GET'])
+@safe_endpoint
 def get_algorithms():
     """Return a short summary of the models used in analysis."""
     return jsonify({
@@ -394,6 +515,7 @@ def get_algorithms():
 
 @app.route('/api/verify', methods=['GET'])
 @limiter.limit('10 per minute')
+@safe_endpoint
 def verify_quote():
     asset = request.args.get('asset', 'Gold')
     ticker = TICKERS.get(asset)
@@ -402,12 +524,13 @@ def verify_quote():
 
     quote = fetch_live_quote(ticker)
     if not quote:
-        return jsonify({'error': 'Unable to verify live quote.'}), 500
+        raise ValueError(f"Unable to verify live quote for {asset} from Yahoo Finance")
 
     return jsonify({'asset': asset, 'ticker': ticker, **quote})
 
 
 @app.route('/api/summary', methods=['GET'])
+@safe_endpoint
 def get_summary():
     """Summary card for all assets — price, change, volatility."""
     period = request.args.get('period', '1y')
@@ -456,12 +579,16 @@ def get_summary():
                 'mode': mode,
             })
         except Exception as e:
-            print(f"  [summary] {name} error: {e}")
+            logger.warning(f"[summary] {name} error: {e}")
+
+    if not results:
+        raise ValueError("No price data available — Yahoo Finance returned nothing")
 
     return jsonify({'assets': results, 'mode': mode, 'categories': CATEGORIES, 'category_icons': CATEGORY_ICONS})
 
 
 @app.route('/api/price-history', methods=['GET'])
+@safe_endpoint
 def get_price_history():
     """Line / Area chart — Close prices over time."""
     asset  = request.args.get('asset', 'Gold')
@@ -476,10 +603,13 @@ def get_price_history():
 
     df = fetch_ticker_df(ticker, period=period, mode=mode, start=start, end=end)
     df = flatten_columns(df)
-    if df.empty or 'Close' not in df.columns:
-        return jsonify({'error': 'No data available'}), 500
+    if df is None or df.empty or 'Close' not in df.columns:
+        raise ValueError("No price data available — Yahoo Finance returned nothing")
 
     close = df['Close'].dropna()
+    if len(close) == 0:
+        raise ValueError("No close price data available")
+
     returns = close.pct_change()
     normalized = (close / close.iloc[0]) * 100
 
@@ -501,6 +631,7 @@ def get_price_history():
 
 
 @app.route('/api/ohlc', methods=['GET'])
+@safe_endpoint
 def get_ohlc():
     """Candlestick chart — OHLC data."""
     asset  = request.args.get('asset', 'Gold')
@@ -515,17 +646,26 @@ def get_ohlc():
 
     df = fetch_ticker_df(ticker, period=period, mode=mode, start=start, end=end)
     df = flatten_columns(df)
+    if df is None or df.empty:
+        raise ValueError("No price data available — Yahoo Finance returned nothing")
+
     needed = [c for c in ['Open', 'High', 'Low', 'Close'] if c in df.columns]
     if len(needed) < 4:
-        return jsonify({'error': 'OHLC data not available'}), 500
+        raise ValueError("OHLC data not available")
 
     df = df.dropna(subset=['Open', 'High', 'Low', 'Close'])
+    if df.empty:
+        raise ValueError("OHLC data rows are empty")
 
     candles = [
         {
             'x': str(date)[:10],
-            'y': [round(float(row['Open']), 4), round(float(row['High']), 4),
-                  round(float(row['Low']), 4),  round(float(row['Close']), 4)]
+            'y': [
+                round(float(row['Open']), 4),
+                round(float(row['High']), 4),
+                round(float(row['Low']), 4),
+                round(float(row['Close']), 4),
+            ],
         }
         for date, row in df.iterrows()
     ]
@@ -534,6 +674,7 @@ def get_ohlc():
 
 
 @app.route('/api/monthly-returns', methods=['GET'])
+@safe_endpoint
 def get_monthly_returns():
     """Bar chart — monthly returns."""
     asset  = request.args.get('asset', 'Gold')
@@ -548,10 +689,13 @@ def get_monthly_returns():
 
     df = fetch_ticker_df(ticker, period=period, mode=mode, start=start, end=end)
     df = flatten_columns(df)
-    if df.empty or 'Close' not in df.columns:
-        return jsonify({'error': 'No data'}), 500
+    if df is None or df.empty or 'Close' not in df.columns:
+        raise ValueError("No price data available — Yahoo Finance returned nothing")
 
     close = df['Close'].dropna()
+    if len(close) == 0:
+        raise ValueError("No close price data available")
+
     monthly = close.resample('ME').last()
     monthly_ret = monthly.pct_change().dropna() * 100
 
@@ -564,6 +708,7 @@ def get_monthly_returns():
 
 
 @app.route('/api/scatter', methods=['GET'])
+@safe_endpoint
 def get_scatter():
     """Scatter — daily return vs 20-day rolling volatility."""
     asset  = request.args.get('asset', 'Gold')
@@ -578,10 +723,13 @@ def get_scatter():
 
     df = fetch_ticker_df(ticker, period=period, mode=mode, start=start, end=end)
     df = flatten_columns(df)
-    if df.empty or 'Close' not in df.columns:
-        return jsonify({'error': 'No data'}), 500
+    if df is None or df.empty or 'Close' not in df.columns:
+        raise ValueError("No price data available — Yahoo Finance returned nothing")
 
     close = df['Close'].dropna()
+    if len(close) < 20:
+        raise ValueError("Insufficient data points for scatter analysis")
+
     ret = close.pct_change() * 100
     vol = ret.rolling(20).std()
     combo = pd.DataFrame({'r': ret, 'v': vol}).dropna()
@@ -594,6 +742,7 @@ def get_scatter():
 
 
 @app.route('/api/radar', methods=['GET'])
+@safe_endpoint
 def get_radar():
     """Radar — compare assets on 4 metrics."""
     period = request.args.get('period', '1y')
@@ -631,12 +780,16 @@ def get_radar():
                 'probability_positive': prob,
             })
         except Exception as e:
-            print(f"  [radar] {name}: {e}")
+            logger.warning(f"[radar] {name}: {e}")
+
+    if not data:
+        raise ValueError("No price data available — Yahoo Finance returned nothing")
 
     return jsonify({'mode': mode, 'assets': data})
 
 
 @app.route('/api/probability', methods=['GET'])
+@safe_endpoint
 def get_probability():
     """Probability of positive return + beginner investment suggestion."""
     asset  = request.args.get('asset', 'Gold')
@@ -658,10 +811,13 @@ def get_probability():
 
     df = fetch_ticker_df(ticker, period=period, mode=mode, start=start, end=end)
     df = flatten_columns(df)
-    if df.empty or 'Close' not in df.columns:
-        return jsonify({'error': 'No data'}), 500
+    if df is None or df.empty or 'Close' not in df.columns:
+        raise ValueError("No price data available — Yahoo Finance returned nothing")
 
     close = df['Close'].dropna()
+    if len(close) < 10:
+        raise ValueError("Insufficient data points for probability analysis")
+
     returns = close.pct_change().dropna()
 
     prob     = probability_positive(returns, window)
@@ -696,6 +852,7 @@ def get_probability():
 
 
 @app.route('/api/shocks', methods=['GET'])
+@safe_endpoint
 def get_shocks():
     """Shock events across core 4 assets."""
     period    = request.args.get('period', '1y')
@@ -720,8 +877,8 @@ def get_shocks():
             return jsonify(cached)
 
     df = fetch_core_closes(period=period, mode=mode, start=start, end=end)
-    if df.empty:
-        return jsonify({'error': 'No core-asset data'}), 500
+    if df is None or df.empty:
+        raise ValueError("No price data available — Yahoo Finance returned nothing")
 
     processed = process_price_data(df)
     shocks = detect_shocks(processed, threshold=threshold, mode=detection_mode)
@@ -744,6 +901,7 @@ def get_shocks():
 
 
 @app.route('/api/propagation', methods=['GET'])
+@safe_endpoint
 def get_propagation():
     """Cross-asset propagation heatmap."""
     period    = request.args.get('period', '1y')
@@ -768,6 +926,9 @@ def get_propagation():
             return jsonify(cached)
 
     df = fetch_core_closes(period=period, mode=mode, start=start, end=end)
+    if df is None or df.empty:
+        raise ValueError("No price data available — Yahoo Finance returned nothing")
+
     processed = process_price_data(df)
     shocks = detect_shocks(processed, threshold=threshold, mode=detection_mode)
     propagation = analyze_shock_propagation(processed, shocks)
@@ -794,6 +955,7 @@ def get_propagation():
 
 @app.route('/api/simulate', methods=['POST'])
 @limiter.limit('20 per minute')
+@safe_endpoint
 def simulate():
     """Simulate a shock on one of the 4 core assets."""
     body      = request.get_json(silent=True) or {}
@@ -823,6 +985,9 @@ def simulate():
         return jsonify({'error': f'Simulation only supports: {CORE_ASSETS}'}), 400
 
     df = fetch_core_closes(period=period, mode=mode, start=start, end=end)
+    if df is None or df.empty:
+        raise ValueError("No price data available — Yahoo Finance returned nothing")
+
     processed = process_price_data(df)
     shocks = detect_shocks(processed, threshold=threshold, mode=detection_mode)
     propagation = analyze_shock_propagation(processed, shocks)
@@ -851,7 +1016,6 @@ def simulate():
 
 
 if __name__ == '__main__':
-    # Allow overriding the port via FLASK_PORT or generic PORT env vars
     try:
         port = int(os.getenv('FLASK_PORT', os.getenv('PORT', '5000')))
     except (TypeError, ValueError):

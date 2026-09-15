@@ -7,19 +7,38 @@ export const toLocalDate = (date = new Date()) => {
   return new Date(date.getTime() - offset * 60000).toISOString().slice(0, 10);
 };
 
-const get = (path) => fetch(`${BASE}${path}`).then(r => {
-  if (!r.ok) throw new Error(`API error: ${r.status} ${r.statusText}`);
-  return r.json();
-});
-const post = (path, body) =>
-  fetch(`${BASE}${path}`, {
+const handleResponse = async (res) => {
+  if (res.status === 503) {
+    const body = await res.json().catch(() => ({}));
+    const message = body.message || body.error || "Data temporarily unavailable. Please retry in a moment.";
+    const err = new Error(message);
+    err.status = 503;
+    err.hint = body.hint || "Yahoo Finance is temporarily unreachable from the server.";
+    throw err;
+  }
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}));
+    const message = body.error || body.message || `Server error: ${res.status}`;
+    const err = new Error(message);
+    err.status = res.status;
+    throw err;
+  }
+  return res.json();
+};
+
+const get = async (path) => {
+  const res = await fetch(`${BASE}${path}`);
+  return handleResponse(res);
+};
+
+const post = async (path, body) => {
+  const res = await fetch(`${BASE}${path}`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(body),
-  }).then(r => {
-    if (!r.ok) throw new Error(`API error: ${r.status} ${r.statusText}`);
-    return r.json();
   });
+  return handleResponse(res);
+};
 
 const buildQuery = (params) =>
   Object.entries(params)
@@ -44,6 +63,7 @@ export const api = {
   verify:         (asset) => getWithParams('/verify', { asset }),
   algorithms:     () => get('/algorithms'),
   dataQuality:    (period = '1y', mode = 'historical', start, end) => getWithParams('/data-quality', { period, mode, start, end }),
+  healthDeep:     () => get('/health/deep'),
 };
 
 export const PERIODS = ['1d', '5d', '1mo', '3mo', '6mo', '1y', '2y', '5y', '10y'];

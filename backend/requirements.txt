@@ -1,6 +1,7 @@
 flask==3.0.3
 flask-cors==4.0.1
-yfinance==0.2.44
+yfinance==0.2.65
+curl_cffi>=0.7.0
 pandas==2.2.3
 numpy==1.26.4
 pyarrow>=17.0.0,<26.0.0

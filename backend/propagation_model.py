@@ -15,6 +15,8 @@ def analyze_shock_propagation(df, shocks, window=3):
     -------
     propagation DataFrame
     """
+    if df is None or df.empty:
+        raise ValueError("No price data available — Yahoo Finance returned nothing")
 
     assets = ['NIFTY', 'Gold', 'Silver', 'BrentOil']
 

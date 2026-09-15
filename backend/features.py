@@ -27,8 +27,8 @@ def normalize_prices(df):
 # -------- MAIN PIPELINE --------
 def process_price_data(df):
 
-    if df.empty:
-        raise ValueError("Input dataframe is empty")
+    if df is None or df.empty:
+        raise ValueError("No price data available — Yahoo Finance returned nothing")
 
     result = df.copy()
 

@@ -8,6 +8,8 @@ def detect_shocks(df, threshold=0.06, mode='fixed_pct', z_threshold=3.0, rolling
     Returns:
         One row per (date, asset) where shock occurs
     """
+    if df is None or df.empty:
+        raise ValueError("No price data available — Yahoo Finance returned nothing")
 
     return_cols = [col for col in df.columns if col.endswith('_returns')]
 
