@@ -219,12 +219,12 @@ a { text-decoration: none; color: inherit; }
   letter-spacing: 0.02em;
   border: 1px solid currentColor;
 }
-.badge-green  { background: var(--green-dim); color: var(--green); }
-.badge-red    { background: var(--red-dim); color: var(--red); }
-.badge-gold   { background: var(--gold-dim); color: var(--gold); }
-.badge-purple { background: var(--purple-dim); color: var(--purple); }
-.badge-blue   { background: var(--teal-dim); color: var(--teal); }
-.badge-orange { background: rgba(249,115,22,0.08); color: var(--orange); }
+.badge-green  { background: var(--green); color: #ffffff; }
+.badge-red    { background: var(--red); color: #ffffff; }
+.badge-gold   { background: var(--gold); color: #ffffff; }
+.badge-purple { background: var(--purple); color: #ffffff; }
+.badge-blue   { background: var(--teal); color: #ffffff; }
+.badge-orange { background: #ea580c; color: #ffffff; }
 
 /* ───────────────────────────────────────────────────────────
    BUTTONS (CLEAN FINANCIAL DESIGN)
@@ -523,7 +523,7 @@ h1, h2, h3, h4, .section-title {
 .page-container { max-width: 1480px; padding: 92px 36px 54px; }
 .section-header { border-bottom: 1px solid var(--border-ui); }
 .section-title { font-size: 1.55rem; }
-.badge { border-radius: 999px; font-family: Inter, sans-serif; font-size: .68rem; letter-spacing: .04em; text-transform: uppercase; }
+.badge { border-radius: 2px; font-family: Inter, sans-serif; font-size: .68rem; letter-spacing: .04em; text-transform: uppercase; }
 .btn { border-radius: 2px; font-family: Inter, sans-serif; text-transform: none; }
 .btn-primary { background: var(--teal); border-color: var(--teal); }
 .btn-primary:hover { background: #0f5149; border-color: #0f5149; }
@@ -846,5 +846,24 @@ h1, h2, h3, h4, .section-title {
   .telemetry-table {
     table-layout: fixed;
     width: 100%;
+  }
+}
+
+  .navbar-links.mobile-menu-open {
+    display: flex !important;
+    background-color: #f8f7f3 !important; /* solid light theme fallback */
+    background-color: var(--bg-card) !important;
+    opacity: 1 !important;
+    backdrop-filter: none !important;
+    -webkit-backdrop-filter: none !important;
+    z-index: 9999 !important;
+  }
+
+@media (max-width: 900px) {
+  .trade-lab-container {
+    display: flex !important;
+    flex-direction: column !important;
+    width: 100% !important;
+    overflow: hidden !important;
   }
 }

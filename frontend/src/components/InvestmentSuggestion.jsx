@@ -18,18 +18,18 @@ export default function InvestmentSuggestion({ data }) {
     <div className={`suggestion-card ${riskClass}`}>
       {/* Header */}
       <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '4px' }}>
-        <div style={{ width: 24, height: 24, borderRadius: 6, background: 'rgba(12, 65, 103, 0.1)' }} />
+        <div style={{ width: 24, height: 24, borderRadius: 6, background: '#e0e0e0' }} />
         <h3 style={{ fontFamily: 'Outfit', fontSize: '1rem', fontWeight: 700 }}>
           Investment Insight
         </h3>
         <span
           className="badge"
           style={{
-            background: riskClass === 'low' ? 'rgba(0,212,170,0.15)' :
-                        riskClass === 'medium' ? 'rgba(245,197,24,0.15)' :
-                        'rgba(255,77,77,0.15)',
-            color: riskClass === 'low' ? 'var(--teal)' :
-                   riskClass === 'medium' ? 'var(--gold)' : 'var(--red)',
+            background: riskClass === 'low' ? 'var(--green)' :
+                        riskClass === 'medium' ? 'var(--gold)' :
+                        'var(--red)',
+            color: '#ffffff',
+            borderRadius: '2px',
           }}
         >
           {risk_level} Risk
@@ -84,7 +84,7 @@ export default function InvestmentSuggestion({ data }) {
       <div style={{
         padding: '10px 16px',
         borderRadius: '8px',
-        background: 'rgba(12, 65, 103, 0.08)',
+        background: 'var(--bg-card-hover)', border: '1px solid var(--border-ui)',
         fontWeight: 600,
         fontSize: '0.85rem',
         color: 'var(--text-primary)',
